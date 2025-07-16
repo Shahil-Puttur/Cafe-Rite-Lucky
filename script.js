@@ -23,7 +23,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 <main class="scene-container">
                     <div id="game-grid" class="game-grid"></div>
                     <div id="cooldown-message" class="cooldown-message hidden"><p class="cooldown-icon">🕒</p><h2>YOUR NEXT CHANCE IS IN</h2><p id="timer-text" class="timer-text">23:59:59</p></div>
-                    <!-- The new error message container -->
                     <div id="error-message" class="error-message hidden"></div>
                 </main>
                 <footer class="main-footer"></footer>
@@ -31,56 +30,15 @@ document.addEventListener('DOMContentLoaded', () => {
             <div id="result-overlay" class="result-overlay hidden">
                 <div class="result-content"><img id="result-image" src="" alt="Game Result"><div id="winner-code-container" class="winner-code-container hidden"><p>YOUR WINNING CODE</p><div id="winner-code" class="winner-code"></div></div></div>
             </div>`;
+        
+        const styleSheet = document.createElement("style");
+        styleSheet.innerText = `.error-message { color: #ff4d4d; background: rgba(255, 77, 77, 0.1); border: 1px solid #ff4d4d; padding: 15px; border-radius: 10px; margin-top: 20px; }`;
+        document.head.appendChild(styleSheet);
+        
         playSound('game');
         initializeGame();
     }
-    
-    // THE NEW ERROR MESSAGE STYLE in CSS
-    const styleSheet = document.createElement("style");
-    styleSheet.type = "text/css";
-    styleSheet.innerText = `.error-message { color: #ff4d4d; background: rgba(255, 77, 77, 0.1); border: 1px solid #ff4d4d; padding: 15px; border-radius: 10px; margin-top: 20px; }`;
-    document.head.appendChild(styleSheet);
 
-
-    async function initializeGame() { /* ... same as previous version ... */ }
-    function createGameGrid() { /* ... same as previous version ... */ }
-
-    // THE CONNECTION FIX: Now with intelligent error handling
-    async function handleBoxClick(event) {
-        playSound('button');
-        document.querySelectorAll('.game-box').forEach(b => b.classList.add('is-disabled'));
-        const clickedBox = event.currentTarget;
-        const errorMessage = document.getElementById('error-message');
-        if(errorMessage) errorMessage.classList.add('hidden');
-
-        try {
-            const response = await fetch(`${BACKEND_URL}/play`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ deviceId: getDeviceId() }) });
-            if (!response.ok) {
-                // This will catch errors like 403 (CORS) or 500 (Server)
-                throw new Error(`Server responded with status: ${response.status}`);
-            }
-            const result = await response.json();
-            playAnimations(clickedBox, result);
-        } catch (error) {
-            console.error("CRITICAL: Game server connection failed.", error);
-            if(errorMessage) {
-                errorMessage.textContent = "Could not connect to the game server. Please try again.";
-                errorMessage.classList.remove('hidden');
-            }
-            // Do not re-enable boxes, force a refresh for a clean state
-        }
-    }
-    
-    function playAnimations(clickedBox, result) { /* ... same as previous version ... */ }
-    function populateAllBoxes(items) { /* ... same as previous version ... */ }
-    function showResult(result) { /* ... same as previous version ... */ }
-    function showWinnerScreenFromStorage() { /* ... same as previous version ... */ }
-    function getDeviceId() { /* ... same as previous version ... */ }
-    function setDailyLock() { /* ... same as previous version ... */ }
-    function showCooldownTimer(msLeft) { /* ... same as previous version ... */ }
-    function pad(num) { /* ... same as previous version ... */ }
-
-    // Re-pasting the full logic to be safe
     async function initializeGame() {
         try {
             const statusResponse = await fetch(`${BACKEND_URL}/status`);
@@ -89,10 +47,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const serverVersion = serverStatus.version;
             const localVersion = localStorage.getItem('cafeRiteGameVersion');
             if (serverVersion > localVersion) {
-                console.log('Server reset detected! Clearing all local data.');
-                localStorage.removeItem('cafeRiteLastPlayed');
-                localStorage.removeItem('cafeRiteWinnerExpiry');
-                localStorage.removeItem('cafeRiteWinnerCode');
+                localStorage.clear(); // Complete reset for the user
                 localStorage.setItem('cafeRiteGameVersion', serverVersion);
             }
             const winnerExpiry = localStorage.getItem('cafeRiteWinnerExpiry');
@@ -103,16 +58,78 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (error) {
             const errorMessage = document.getElementById('error-message');
             if(errorMessage) {
-                errorMessage.textContent = "Initialization failed. Cannot connect to game server.";
+                errorMessage.textContent = "Initialization failed: Cannot connect to game server.";
                 errorMessage.classList.remove('hidden');
             }
-            console.error("Initialization failed:", error);
         }
     }
-    function createGameGrid() { const gameGrid = document.getElementById('game-grid'); const cooldownMessage = document.getElementById('cooldown-message'); if (!gameGrid || !cooldownMessage) return; gameGrid.style.display = 'grid'; cooldownMessage.classList.add('hidden'); gameGrid.innerHTML = ''; for (let i = 0; i < 9; i++) { const box = document.createElement('div'); box.className = 'game-box'; box.addEventListener('click', handleBoxClick, { once: true }); box.innerHTML = `<div class="box-face box-front"></div><div class="box-face box-back"></div>`; gameGrid.appendChild(box); } }
-    function playAnimations(clickedBox, result) { populateAllBoxes(result.items); const clickedIndex = Array.from(clickedBox.parentNode.children).indexOf(clickedBox); const finalResult = { ...result, win: result.items[clickedIndex] === '🍔' }; clickedBox.classList.add('is-flipped'); setTimeout(() => { showResult(finalResult); setDailyLock(); }, 800); }
+    
+    function createGameGrid() {
+        const gameGrid = document.getElementById('game-grid'); const cooldownMessage = document.getElementById('cooldown-message'); if (!gameGrid || !cooldownMessage) return;
+        gameGrid.style.display = 'grid'; cooldownMessage.classList.add('hidden'); gameGrid.innerHTML = '';
+        for (let i = 0; i < 9; i++) { const box = document.createElement('div'); box.className = 'game-box'; box.addEventListener('click', handleBoxClick, { once: true }); box.innerHTML = `<div class="box-face box-front"></div><div class="box-face box-back"></div>`; gameGrid.appendChild(box); }
+    }
+
+    async function handleBoxClick(event) {
+        playSound('button');
+        document.querySelectorAll('.game-box').forEach(b => b.classList.add('is-disabled'));
+        const clickedBox = event.currentTarget;
+        const errorMessage = document.getElementById('error-message');
+        if(errorMessage) errorMessage.classList.add('hidden');
+
+        try {
+            const response = await fetch(`${BACKEND_URL}/play`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ deviceId: getDeviceId() }) });
+            if (!response.ok) throw new Error(`Server Error: ${response.status}`);
+            const result = await response.json();
+            playAnimations(clickedBox, result);
+        } catch (error) {
+            console.error("CRITICAL: Game server connection failed.", error);
+            if(errorMessage) {
+                errorMessage.textContent = "Server Connection Error. Please refresh and try again.";
+                errorMessage.classList.remove('hidden');
+            }
+        }
+    }
+
+    function playAnimations(clickedBox, result) {
+        populateAllBoxes(result.items);
+        clickedBox.classList.add('is-flipped');
+        setTimeout(() => {
+            showResult(result); // Pass the raw result from server
+            setDailyLock();
+        }, 800);
+    }
+    
     function populateAllBoxes(items) { document.querySelectorAll('.game-box').forEach((box, i) => { if(box) box.querySelector('.box-back').innerHTML = items[i]; }); }
-    function showResult(result) { const resultOverlay = document.getElementById('result-overlay'); const resultImage = document.getElementById('result-image'); const winnerCodeContainer = document.getElementById('winner-code-container'); const winnerCodeEl = document.getElementById('winner-code'); if(!resultOverlay || !resultImage || !winnerCodeContainer || !winnerCodeEl) return; resultImage.src = result.win ? 'lucky.png' : 'unlucky.png'; if (result.win) { winnerCodeEl.textContent = result.winnerCode; winnerCodeContainer.classList.remove('hidden'); const expiryTime = Date.now() + 60 * 60 * 1000; localStorage.setItem('cafeRiteWinnerExpiry', expiryTime); localStorage.setItem('cafeRiteWinnerCode', result.winnerCode); } else { winnerCodeContainer.classList.add('hidden'); setTimeout(() => { resultOverlay.classList.remove('visible'); setTimeout(() => { document.querySelectorAll('.game-box').forEach(box => { if (box) box.classList.add('is-flipped'); }); setTimeout(() => { showCooldownTimer(24 * 60 * 60 * 1000); }, 7000); }, 100); }, 5000); } resultOverlay.classList.remove('hidden'); setTimeout(() => resultOverlay.classList.add('visible'), 10); }
+
+    function showResult(result) {
+        const resultOverlay = document.getElementById('result-overlay'); const resultImage = document.getElementById('result-image'); const winnerCodeContainer = document.getElementById('winner-code-container'); const winnerCodeEl = document.getElementById('winner-code');
+        if(!resultOverlay || !resultImage || !winnerCodeContainer || !winnerCodeEl) return;
+        
+        // This is the core logic fix. We trust the server's "win" status completely.
+        if (result.win) {
+            resultImage.src = 'lucky.png';
+            winnerCodeEl.textContent = result.winnerCode;
+            winnerCodeContainer.classList.remove('hidden');
+            const expiryTime = Date.now() + 60 * 60 * 1000;
+            localStorage.setItem('cafeRiteWinnerExpiry', expiryTime);
+            localStorage.setItem('cafeRiteWinnerCode', result.winnerCode);
+        } else {
+            resultImage.src = 'unlucky.png';
+            winnerCodeContainer.classList.add('hidden');
+            setTimeout(() => {
+                resultOverlay.classList.remove('visible');
+                setTimeout(() => { 
+                    document.querySelectorAll('.game-box').forEach(box => { if (box) box.classList.add('is-flipped'); });
+                    setTimeout(() => { showCooldownTimer(24 * 60 * 60 * 1000); }, 7000);
+                }, 100);
+            }, 5000);
+        }
+        
+        resultOverlay.classList.remove('hidden');
+        setTimeout(() => resultOverlay.classList.add('visible'), 10);
+    }
+    
     function showWinnerScreenFromStorage() { const sceneContainer = document.querySelector('.scene-container'); const resultOverlay = document.getElementById('result-overlay'); const resultImage = document.getElementById('result-image'); const winnerCodeContainer = document.getElementById('winner-code-container'); const winnerCodeEl = document.getElementById('winner-code'); if(!sceneContainer || !resultOverlay || !resultImage || !winnerCodeContainer || !winnerCodeEl) return; sceneContainer.style.display = 'none'; resultImage.src = 'lucky.png'; winnerCodeEl.textContent = localStorage.getItem('cafeRiteWinnerCode'); winnerCodeContainer.classList.remove('hidden'); resultOverlay.classList.remove('hidden'); resultOverlay.classList.add('visible'); }
     function getDeviceId() { let id = localStorage.getItem('cafeRiteDeviceId'); if (!id) { id = 'device-' + Date.now() + Math.random(); localStorage.setItem('cafeRiteDeviceId', id); } return id; }
     function setDailyLock() { localStorage.setItem('cafeRiteLastPlayed', Date.now()); }
