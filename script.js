@@ -1,4 +1,4 @@
-// --- The "Flawless" Engine --- //
+// --- The "Zero-Failure" Engine --- //
 
 document.addEventListener('DOMContentLoaded', () => {
     const BACKEND_URL = 'https://shop-op4l.onrender.com';
@@ -23,31 +23,37 @@ document.addEventListener('DOMContentLoaded', () => {
                 <main class="scene-container">
                     <div id="game-grid" class="game-grid"></div>
                     <div id="cooldown-message" class="cooldown-message hidden"><p class="cooldown-icon">🕒</p><h2>YOUR NEXT CHANCE IS IN</h2><p id="timer-text" class="timer-text">23:59:59</p></div>
-                    <div id="error-message" class="error-message hidden"></div>
+                    <div id="status-message" class="status-message hidden"></div>
                 </main>
                 <footer class="main-footer"></footer>
             </div>
             <div id="result-overlay" class="result-overlay hidden">
                 <div class="result-content"><img id="result-image" src="" alt="Game Result"><div id="winner-code-container" class="winner-code-container hidden"><p>YOUR WINNING CODE</p><div id="winner-code" class="winner-code"></div></div></div>
             </div>`;
-        
-        const styleSheet = document.createElement("style");
-        styleSheet.innerText = `.error-message { color: #ff4d4d; background: rgba(255, 77, 77, 0.1); border: 1px solid #ff4d4d; padding: 15px; border-radius: 10px; margin-top: 20px; }`;
-        document.head.appendChild(styleSheet);
-        
         playSound('game');
         initializeGame();
     }
 
     async function initializeGame() {
+        const sceneContainer = document.querySelector('.scene-container');
+        if (!sceneContainer) return;
+
+        // Show a loading state to the user while we check the server
+        sceneContainer.innerHTML = `<div id="status-message" class="status-message">Connecting to Game Server...</div>`;
+        const statusMessage = document.getElementById('status-message');
+
         try {
             const statusResponse = await fetch(`${BACKEND_URL}/status`);
             if (!statusResponse.ok) throw new Error('Cannot reach server for status check.');
             const serverStatus = await statusResponse.json();
+            
+            // Server is awake and responded, now check game state
+            sceneContainer.innerHTML = `<div id="game-grid" class="game-grid"></div><div id="cooldown-message" class="cooldown-message hidden">...</div><div id="error-message" class="error-message hidden"></div>`;
+
             const serverVersion = serverStatus.version;
             const localVersion = localStorage.getItem('cafeRiteGameVersion');
             if (serverVersion > localVersion) {
-                localStorage.clear(); // Complete reset for the user
+                localStorage.clear();
                 localStorage.setItem('cafeRiteGameVersion', serverVersion);
             }
             const winnerExpiry = localStorage.getItem('cafeRiteWinnerExpiry');
@@ -56,26 +62,20 @@ document.addEventListener('DOMContentLoaded', () => {
             if (lastPlayed) { const timeSince = Date.now() - parseInt(lastPlayed, 10); const cooldown = 24 * 60 * 60 * 1000; if (timeSince < cooldown) { showCooldownTimer(cooldown - timeSince); return; } }
             createGameGrid();
         } catch (error) {
-            const errorMessage = document.getElementById('error-message');
-            if(errorMessage) {
-                errorMessage.textContent = "Initialization failed: Cannot connect to game server.";
-                errorMessage.classList.remove('hidden');
-            }
+            console.error("Initialization failed:", error);
+            statusMessage.innerHTML = `<div class="error-message">Could not connect to the game.<br>Please check your internet and refresh.</div>`;
         }
     }
     
-    function createGameGrid() {
-        const gameGrid = document.getElementById('game-grid'); const cooldownMessage = document.getElementById('cooldown-message'); if (!gameGrid || !cooldownMessage) return;
-        gameGrid.style.display = 'grid'; cooldownMessage.classList.add('hidden'); gameGrid.innerHTML = '';
-        for (let i = 0; i < 9; i++) { const box = document.createElement('div'); box.className = 'game-box'; box.addEventListener('click', handleBoxClick, { once: true }); box.innerHTML = `<div class="box-face box-front"></div><div class="box-face box-back"></div>`; gameGrid.appendChild(box); }
-    }
-
+    function createGameGrid() { /* ... same ... */ }
     async function handleBoxClick(event) {
         playSound('button');
-        document.querySelectorAll('.game-box').forEach(b => b.classList.add('is-disabled'));
+        const allBoxes = document.querySelectorAll('.game-box');
+        allBoxes.forEach(b => b.classList.add('is-disabled'));
         const clickedBox = event.currentTarget;
-        const errorMessage = document.getElementById('error-message');
-        if(errorMessage) errorMessage.classList.add('hidden');
+        
+        // Show loading spinner inside the clicked box
+        clickedBox.querySelector('.box-front').innerHTML = '<div class="loading-spinner"></div>';
 
         try {
             const response = await fetch(`${BACKEND_URL}/play`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ deviceId: getDeviceId() }) });
@@ -84,55 +84,31 @@ document.addEventListener('DOMContentLoaded', () => {
             playAnimations(clickedBox, result);
         } catch (error) {
             console.error("CRITICAL: Game server connection failed.", error);
-            if(errorMessage) {
-                errorMessage.textContent = "Server Connection Error. Please refresh and try again.";
-                errorMessage.classList.remove('hidden');
-            }
+            alert("Sorry, the game server is busy. Please try again in a moment.");
+            // Reset the UI to a playable state
+            document.querySelectorAll('.game-box').forEach(b => {
+                b.classList.remove('is-disabled');
+                b.querySelector('.box-front').innerHTML = ''; // Remove spinner
+            });
         }
     }
+    function playAnimations(clickedBox, result) { /* ... same ... */ }
+    function populateAllBoxes(items) { /* ... same ... */ }
+    function showResult(result) { /* ... same ... */ }
+    function showWinnerScreenFromStorage() { /* ... same ... */ }
+    function getDeviceId() { /* ... same ... */ }
+    function setDailyLock() { /* ... same ... */ }
+    function showCooldownTimer(msLeft) { /* ... same ... */ }
+    function pad(num) { /* ... same ... */ }
 
-    function playAnimations(clickedBox, result) {
-        populateAllBoxes(result.items);
-        clickedBox.classList.add('is-flipped');
-        setTimeout(() => {
-            showResult(result); // Pass the raw result from server
-            setDailyLock();
-        }, 800);
-    }
-    
+    // Re-pasting the full logic to be safe
+    function createGameGrid() { const gameGrid = document.getElementById('game-grid'); const cooldownMessage = document.getElementById('cooldown-message'); if (!gameGrid || !cooldownMessage) return; gameGrid.style.display = 'grid'; cooldownMessage.classList.add('hidden'); gameGrid.innerHTML = ''; for (let i = 0; i < 9; i++) { const box = document.createElement('div'); box.className = 'game-box'; box.addEventListener('click', handleBoxClick, { once: true }); box.innerHTML = `<div class="box-face box-front"></div><div class="box-face box-back"></div>`; gameGrid.appendChild(box); } }
+    function playAnimations(clickedBox, result) { populateAllBoxes(result.items); const clickedIndex = Array.from(clickedBox.parentNode.children).indexOf(clickedBox); const finalResult = { ...result, win: result.items[clickedIndex] === '🍔' }; clickedBox.classList.add('is-flipped'); setTimeout(() => { showResult(finalResult); setDailyLock(); }, 800); }
     function populateAllBoxes(items) { document.querySelectorAll('.game-box').forEach((box, i) => { if(box) box.querySelector('.box-back').innerHTML = items[i]; }); }
-
-    function showResult(result) {
-        const resultOverlay = document.getElementById('result-overlay'); const resultImage = document.getElementById('result-image'); const winnerCodeContainer = document.getElementById('winner-code-container'); const winnerCodeEl = document.getElementById('winner-code');
-        if(!resultOverlay || !resultImage || !winnerCodeContainer || !winnerCodeEl) return;
-        
-        // This is the core logic fix. We trust the server's "win" status completely.
-        if (result.win) {
-            resultImage.src = 'lucky.png';
-            winnerCodeEl.textContent = result.winnerCode;
-            winnerCodeContainer.classList.remove('hidden');
-            const expiryTime = Date.now() + 60 * 60 * 1000;
-            localStorage.setItem('cafeRiteWinnerExpiry', expiryTime);
-            localStorage.setItem('cafeRiteWinnerCode', result.winnerCode);
-        } else {
-            resultImage.src = 'unlucky.png';
-            winnerCodeContainer.classList.add('hidden');
-            setTimeout(() => {
-                resultOverlay.classList.remove('visible');
-                setTimeout(() => { 
-                    document.querySelectorAll('.game-box').forEach(box => { if (box) box.classList.add('is-flipped'); });
-                    setTimeout(() => { showCooldownTimer(24 * 60 * 60 * 1000); }, 7000);
-                }, 100);
-            }, 5000);
-        }
-        
-        resultOverlay.classList.remove('hidden');
-        setTimeout(() => resultOverlay.classList.add('visible'), 10);
-    }
-    
-    function showWinnerScreenFromStorage() { const sceneContainer = document.querySelector('.scene-container'); const resultOverlay = document.getElementById('result-overlay'); const resultImage = document.getElementById('result-image'); const winnerCodeContainer = document.getElementById('winner-code-container'); const winnerCodeEl = document.getElementById('winner-code'); if(!sceneContainer || !resultOverlay || !resultImage || !winnerCodeContainer || !winnerCodeEl) return; sceneContainer.style.display = 'none'; resultImage.src = 'lucky.png'; winnerCodeEl.textContent = localStorage.getItem('cafeRiteWinnerCode'); winnerCodeContainer.classList.remove('hidden'); resultOverlay.classList.remove('hidden'); resultOverlay.classList.add('visible'); }
+    function showResult(result) { const resultOverlay = document.getElementById('result-overlay'); const resultImage = document.getElementById('result-image'); const winnerCodeContainer = document.getElementById('winner-code-container'); const winnerCodeEl = document.getElementById('winner-code'); if(!resultOverlay || !resultImage || !winnerCodeContainer || !winnerCodeEl) return; resultImage.src = result.win ? 'lucky.png' : 'unlucky.png'; if (result.win) { winnerCodeEl.textContent = result.winnerCode; winnerCodeContainer.classList.remove('hidden'); const expiryTime = Date.now() + 60 * 60 * 1000; localStorage.setItem('cafeRiteWinnerExpiry', expiryTime); localStorage.setItem('cafeRiteWinnerCode', result.winnerCode); } else { winnerCodeContainer.classList.add('hidden'); setTimeout(() => { resultOverlay.classList.remove('visible'); setTimeout(() => { document.querySelectorAll('.game-box').forEach(box => { if (box) box.classList.add('is-flipped'); }); setTimeout(() => { showCooldownTimer(24 * 60 * 60 * 1000); }, 7000); }, 100); }, 5000); } resultOverlay.classList.remove('hidden'); setTimeout(() => resultOverlay.classList.add('visible'), 10); }
+    function showWinnerScreenFromStorage() { const sceneContainer = document.querySelector('.scene-container'); const resultOverlay = document.getElementById('result-overlay'); const resultImage = document.getElementById('result-image'); const winnerCodeContainer = document.getElementById('winner-code-container'); const winnerCodeEl = document.getElementById('winner-code'); if(!sceneContainer || !resultOverlay || !resultImage || !winnerCodeContainer || !winnerCodeEl) return; sceneContainer.innerHTML = ''; resultImage.src = 'lucky.png'; winnerCodeEl.textContent = localStorage.getItem('cafeRiteWinnerCode'); winnerCodeContainer.classList.remove('hidden'); resultOverlay.classList.remove('hidden'); resultOverlay.classList.add('visible'); }
     function getDeviceId() { let id = localStorage.getItem('cafeRiteDeviceId'); if (!id) { id = 'device-' + Date.now() + Math.random(); localStorage.setItem('cafeRiteDeviceId', id); } return id; }
     function setDailyLock() { localStorage.setItem('cafeRiteLastPlayed', Date.now()); }
-    function showCooldownTimer(msLeft) { const gameGrid = document.getElementById('game-grid'); const cooldownMessage = document.getElementById('cooldown-message'); const timerText = document.getElementById('timer-text'); if(!gameGrid || !cooldownMessage || !timerText) return; gameGrid.style.display = 'none'; cooldownMessage.classList.remove('hidden'); let interval = setInterval(() => { msLeft -= 1000; if (msLeft <= 0) { clearInterval(interval); createGameGrid(); return; } const h = Math.floor(msLeft / 3600000); const m = Math.floor((msLeft % 3600000) / 60000); const s = Math.floor((msLeft % 60000) / 1000); timerText.textContent = `${pad(h)}:${pad(m)}:${pad(s)}`; }, 1000); }
+    function showCooldownTimer(msLeft) { const sceneContainer = document.querySelector('.scene-container'); if(!sceneContainer) return; sceneContainer.innerHTML = `<div id="cooldown-message" class="cooldown-message"><p class="cooldown-icon">🕒</p><h2>YOUR NEXT CHANCE IS IN</h2><p id="timer-text" class="timer-text"></p></div>`; const timerText = document.getElementById('timer-text'); let interval = setInterval(() => { msLeft -= 1000; if (msLeft <= 0) { clearInterval(interval); initializeGame(); return; } const h = Math.floor(msLeft / 3600000); const m = Math.floor((msLeft % 3600000) / 60000); const s = Math.floor((msLeft % 60000) / 1000); timerText.textContent = `${pad(h)}:${pad(m)}:${pad(s)}`; }, 1000); }
     function pad(num) { return num < 10 ? '0' + num : num; }
 });
