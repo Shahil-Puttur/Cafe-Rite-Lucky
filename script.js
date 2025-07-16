@@ -23,7 +23,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 buttonSound.currentTime = 0;
                 buttonSound.play().catch(e => {});
             }
-        } catch (e) { /* Fails silently if audio files are missing */ }
+        } catch (e) {}
     }
 
     // --- 3. MASTER FLOW ---
@@ -33,7 +33,7 @@ document.addEventListener('DOMContentLoaded', () => {
         buildMainApp();
     });
 
-    // --- 4. APP BUILDER (Prevents race conditions) ---
+    // --- 4. APP BUILDER (This prevents race conditions) ---
     function buildMainApp() {
         appContainer.innerHTML = `
             <div id="main-container" class="main-container">
@@ -49,6 +49,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         <h2>YOUR NEXT CHANCE IS IN</h2>
                         <p id="timer-text" class="timer-text">23:59:59</p>
                     </div>
+                    <!-- The new error message container -->
+                    <div id="error-message" class="error-message hidden"></div>
                 </main>
                 <footer class="main-footer"></footer>
             </div>
@@ -68,17 +70,38 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- 5. CORE GAME LOGIC ---
-    function initializeGame() { /* Same as previous correct version */ }
-    function createGameGrid() { /* Same as previous correct version */ }
-    async function handleBoxClick(event) { /* Same as previous correct version */ }
-    function playAnimations(clickedBox, result) { /* Same as previous correct version */ }
-    function populateAllBoxes(items) { /* Same as previous correct version */ }
-    function showResult(result) { /* Same as previous correct version */ }
-    function showWinnerScreenFromStorage() { /* Same as previous correct version */ }
-    function getDeviceId() { /* Same as previous correct version */ }
-    function setDailyLock() { /* Same as previous correct version */ }
-    function showCooldownTimer(msLeft) { /* Same as previous correct version */ }
-    function pad(num) { /* Same as previous correct version */ }
+    function initializeGame() { /* Same as previous version */ }
+    function createGameGrid() { /* Same as previous version */ }
+    async function handleBoxClick(event) {
+        playSound('button');
+        const allBoxes = document.querySelectorAll('.game-box');
+        allBoxes.forEach(b => b.classList.add('is-disabled'));
+        const clickedBox = event.currentTarget;
+        const errorMessage = document.getElementById('error-message');
+        if(errorMessage) errorMessage.classList.add('hidden');
+
+        try {
+            const response = await fetch(`${BACKEND_URL}/play`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ deviceId: getDeviceId() }) });
+            if (!response.ok) throw new Error(`Server Error: ${response.status}`);
+            const result = await response.json();
+            playAnimations(clickedBox, result);
+        } catch (error) {
+            console.error("CRITICAL: Game server connection failed.", error);
+            if(errorMessage) {
+                errorMessage.textContent = "Server Connection Error. Please refresh and try again.";
+                errorMessage.classList.remove('hidden');
+            }
+            // Do not re-enable boxes, force a refresh for a clean state
+        }
+    }
+    function playAnimations(clickedBox, result) { /* Same as previous version */ }
+    function populateAllBoxes(items) { /* Same as previous version */ }
+    function showResult(result) { /* Same as previous version */ }
+    function showWinnerScreenFromStorage() { /* Same as previous version */ }
+    function getDeviceId() { /* Same as previous version */ }
+    function setDailyLock() { /* Same as previous version */ }
+    function showCooldownTimer(msLeft) { /* Same as previous version */ }
+    function pad(num) { /* Same as previous version */ }
 
     // Re-pasting the full logic to be safe
     function initializeGame() {
@@ -92,13 +115,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const gameGrid = document.getElementById('game-grid'); const cooldownMessage = document.getElementById('cooldown-message'); if (!gameGrid || !cooldownMessage) return;
         gameGrid.style.display = 'grid'; cooldownMessage.classList.add('hidden'); gameGrid.innerHTML = '';
         for (let i = 0; i < 9; i++) { const box = document.createElement('div'); box.className = 'game-box'; box.addEventListener('click', handleBoxClick, { once: true }); box.innerHTML = `<div class="box-face box-front"></div><div class="box-face box-back"></div>`; gameGrid.appendChild(box); }
-    }
-    async function handleBoxClick(event) {
-        playSound('button');
-        document.querySelectorAll('.game-box').forEach(b => b.classList.add('is-disabled'));
-        const clickedBox = event.currentTarget;
-        try { const response = await fetch(`${BACKEND_URL}/play`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ deviceId: getDeviceId() }) }); if (!response.ok) throw new Error(`Server Error: ${response.status}`); const result = await response.json(); playAnimations(clickedBox, result);
-        } catch (error) { console.error("CRITICAL: Game server connection failed.", error); alert("Sorry, the game server is busy. Please try again in a moment."); document.querySelectorAll('.game-box').forEach(b => b.classList.remove('is-disabled')); }
     }
     function playAnimations(clickedBox, result) { populateAllBoxes(result.items); clickedBox.classList.add('is-flipped'); setTimeout(() => { showResult(result); setDailyLock(); }, 800); }
     function populateAllBoxes(items) { document.querySelectorAll('.game-box').forEach((box, i) => { if(box) box.querySelector('.box-back').innerHTML = items[i]; }); }
