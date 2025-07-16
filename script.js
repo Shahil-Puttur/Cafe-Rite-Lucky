@@ -1,65 +1,70 @@
 // --- The "Flawless" Engine --- //
 
 document.addEventListener('DOMContentLoaded', () => {
-    // --- CONFIGURATION ---
     const BACKEND_URL = 'https://shop-op4l.onrender.com';
 
-    // --- 1. GET ELEMENTS ---
     const rulesOverlay = document.getElementById('rules-overlay');
     const acceptBtn = document.getElementById('accept-rules-btn');
     const appContainer = document.getElementById('app-container');
 
-    // --- 2. AUDIO (BULLETPROOF SETUP) ---
     let gameMusic, buttonSound;
     function playSound(type) { try { if (type === 'game') { if (!gameMusic) gameMusic = new Audio('game.mp3'); gameMusic.volume = 0.3; gameMusic.play().catch(e => {}); } else { if (!buttonSound) buttonSound = new Audio('button.mp3'); buttonSound.volume = 0.5; buttonSound.currentTime = 0; buttonSound.play().catch(e => {}); } } catch (e) {} }
 
-    // --- 3. MASTER FLOW ---
     acceptBtn.addEventListener('click', () => {
         playSound('button');
         rulesOverlay.classList.add('hidden');
         buildMainApp();
     });
 
-    // --- 4. APP BUILDER (Prevents race conditions) ---
     function buildMainApp() {
         appContainer.innerHTML = `
             <div id="main-container" class="main-container">
-                <header class="main-header">
-                    <h1 class="main-title">CAFE RITE</h1>
-                    <p class="sub-title">Pick a Lucky Box</p>
-                    <p class="win-condition"><span>🍔</span> = ( WINNER ) ₹200 Free Food Order</p>
-                </header>
+                <header class="main-header"><h1 class="main-title">CAFE RITE</h1><p class="sub-title">Pick a Lucky Box</p><p class="win-condition"><span>🍔</span> = ( WINNER ) ₹200 Free Food Order</p></header>
                 <main class="scene-container">
                     <div id="game-grid" class="game-grid"></div>
-                    <div id="cooldown-message" class="cooldown-message hidden">
-                        <p class="cooldown-icon">🕒</p>
-                        <h2>YOUR NEXT CHANCE IS IN</h2>
-                        <p id="timer-text" class="timer-text">23:59:59</p>
-                    </div>
+                    <div id="cooldown-message" class="cooldown-message hidden"><p class="cooldown-icon">🕒</p><h2>YOUR NEXT CHANCE IS IN</h2><p id="timer-text" class="timer-text">23:59:59</p></div>
                 </main>
                 <footer class="main-footer"></footer>
             </div>
             <div id="result-overlay" class="result-overlay hidden">
-                <div class="result-content">
-                    <img id="result-image" src="" alt="Game Result">
-                    <div id="winner-code-container" class="winner-code-container hidden">
-                        <p>YOUR WINNING CODE</p>
-                        <div id="winner-code" class="winner-code"></div>
-                    </div>
-                </div>
-            </div>
-        `;
+                <div class="result-content"><img id="result-image" src="" alt="Game Result"><div id="winner-code-container" class="winner-code-container hidden"><p>YOUR WINNING CODE</p><div id="winner-code" class="winner-code"></div></div></div>
+            </div>`;
         playSound('game');
         initializeGame();
     }
 
-    // --- 5. CORE GAME LOGIC (STABLE & SEQUENTIAL) ---
-    function initializeGame() {
-        const winnerExpiry = localStorage.getItem('cafeRiteWinnerExpiry');
-        if (winnerExpiry && Date.now() < parseInt(winnerExpiry, 10)) { showWinnerScreenFromStorage(); return; }
-        const lastPlayed = localStorage.getItem('cafeRiteLastPlayed');
-        if (lastPlayed) { const timeSince = Date.now() - parseInt(lastPlayed, 10); const cooldown = 24 * 60 * 60 * 1000; if (timeSince < cooldown) { showCooldownTimer(cooldown - timeSince); return; } }
-        createGameGrid();
+    // --- THE SMART SYNC LOGIC ---
+    async function initializeGame() {
+        try {
+            // Ask the server for the current game version
+            const statusResponse = await fetch(`${BACKEND_URL}/status`);
+            if (!statusResponse.ok) throw new Error('Cannot reach server for status check.');
+            const serverStatus = await statusResponse.json();
+            const serverVersion = serverStatus.version;
+            
+            const localVersion = localStorage.getItem('cafeRiteGameVersion');
+
+            // If server version is newer, a reset has happened!
+            if (serverVersion > localVersion) {
+                console.log('Server reset detected! Clearing all local data.');
+                localStorage.removeItem('cafeRiteLastPlayed');
+                localStorage.removeItem('cafeRiteWinnerExpiry');
+                localStorage.removeItem('cafeRiteWinnerCode');
+                localStorage.setItem('cafeRiteGameVersion', serverVersion);
+            }
+
+            // Now, proceed with the normal checks using clean data
+            const winnerExpiry = localStorage.getItem('cafeRiteWinnerExpiry');
+            if (winnerExpiry && Date.now() < parseInt(winnerExpiry, 10)) { showWinnerScreenFromStorage(); return; }
+            
+            const lastPlayed = localStorage.getItem('cafeRiteLastPlayed');
+            if (lastPlayed) { const timeSince = Date.now() - parseInt(lastPlayed, 10); const cooldown = 24 * 60 * 60 * 1000; if (timeSince < cooldown) { showCooldownTimer(cooldown - timeSince); return; } }
+
+            createGameGrid();
+        } catch (error) {
+            console.error("Initialization failed:", error);
+            alert("Could not connect to the game. Please check your internet connection and refresh.");
+        }
     }
     
     function createGameGrid() {
@@ -76,38 +81,28 @@ document.addEventListener('DOMContentLoaded', () => {
             const response = await fetch(`${BACKEND_URL}/play`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ deviceId: getDeviceId() }) });
             if (!response.ok) throw new Error(`Server Error: ${response.status}`);
             const result = await response.json();
-            
-            // THE BUG FIX: Pass the entire result object to playAnimations
             playAnimations(clickedBox, result);
-        } catch (error) {
-            console.error("CRITICAL: Game server connection failed.", error);
-            alert("Sorry, the game server is busy. Please try again in a moment.");
-            document.querySelectorAll('.game-box').forEach(b => b.classList.remove('is-disabled'));
-        }
+        } catch (error) { console.error("CRITICAL: Game server connection failed.", error); alert("Sorry, the game server is busy. Please try again in a moment."); document.querySelectorAll('.game-box').forEach(b => b.classList.remove('is-disabled')); }
     }
 
-    // THE BUG FIX: The clicked box now correctly knows if it's a winner
     function playAnimations(clickedBox, result) {
         populateAllBoxes(result.items);
         const clickedIndex = Array.from(clickedBox.parentNode.children).indexOf(clickedBox);
-        const isClickedBoxTheWinner = (result.items[clickedIndex] === '🍔');
-
-        // This ensures the visual result matches the server's decision
-        const finalResult = { ...result, win: isClickedBoxTheWinner };
         
+        // This is the core bug fix for the "false winner"
+        const finalResult = { ...result, win: result.items[clickedIndex] === '🍔' };
+
         clickedBox.classList.add('is-flipped');
         setTimeout(() => {
             showResult(finalResult);
             setDailyLock();
         }, 800);
     }
-
+    
     function populateAllBoxes(items) { document.querySelectorAll('.game-box').forEach((box, i) => { if(box) box.querySelector('.box-back').innerHTML = items[i]; }); }
 
-    // --- 6. THE LOGIC FIX: RESULT & TIMER LOGIC (PERFECTED) ---
     function showResult(result) {
-        const resultOverlay = document.getElementById('result-overlay'); const resultImage = document.getElementById('result-image'); const winnerCodeContainer = document.getElementById('winner-code-container'); const winnerCodeEl = document.getElementById('winner-code');
-        if(!resultOverlay || !resultImage || !winnerCodeContainer || !winnerCodeEl) return;
+        const resultOverlay = document.getElementById('result-overlay'); const resultImage = document.getElementById('result-image'); const winnerCodeContainer = document.getElementById('winner-code-container'); const winnerCodeEl = document.getElementById('winner-code'); if(!resultOverlay || !resultImage || !winnerCodeContainer || !winnerCodeEl) return;
         
         if (result.win) {
             resultImage.src = 'lucky.png';
@@ -123,12 +118,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 resultOverlay.classList.remove('visible');
                 setTimeout(() => { 
                     document.querySelectorAll('.game-box').forEach(box => { if (box) box.classList.add('is-flipped'); });
-                    // THE UX TIMING FIX:
-                    setTimeout(() => {
-                        showCooldownTimer(24 * 60 * 60 * 1000);
-                    }, 7000); // 7 seconds after revealing all boxes
+                    setTimeout(() => { showCooldownTimer(24 * 60 * 60 * 1000); }, 7000); // 7 seconds after revealing boxes
                 }, 100);
-            }, 5000); // Unlucky image shows for 5 seconds
+            }, 5000);
         }
         
         resultOverlay.classList.remove('hidden');
@@ -141,7 +133,6 @@ document.addEventListener('DOMContentLoaded', () => {
     function showCooldownTimer(msLeft) { /* ... unchanged ... */ }
     function pad(num) { /* ... unchanged ... */ }
 
-    // Re-pasting the full logic to be safe
     function showWinnerScreenFromStorage() { const gameGrid = document.getElementById('game-grid'); const cooldownMessage = document.getElementById('cooldown-message'); const resultOverlay = document.getElementById('result-overlay'); const resultImage = document.getElementById('result-image'); const winnerCodeContainer = document.getElementById('winner-code-container'); const winnerCodeEl = document.getElementById('winner-code'); if(!gameGrid || !cooldownMessage || !resultOverlay || !resultImage || !winnerCodeContainer || !winnerCodeEl) return; gameGrid.style.display = 'none'; cooldownMessage.classList.add('hidden'); resultImage.src = 'lucky.png'; winnerCodeEl.textContent = localStorage.getItem('cafeRiteWinnerCode'); winnerCodeContainer.classList.remove('hidden'); resultOverlay.classList.remove('hidden'); resultOverlay.classList.add('visible'); }
     function getDeviceId() { let id = localStorage.getItem('cafeRiteDeviceId'); if (!id) { id = 'device-' + Date.now() + Math.random(); localStorage.setItem('cafeRiteDeviceId', id); } return id; }
     function setDailyLock() { localStorage.setItem('cafeRiteLastPlayed', Date.now()); }
