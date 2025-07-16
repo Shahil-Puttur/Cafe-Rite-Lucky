@@ -10,51 +10,15 @@ document.addEventListener('DOMContentLoaded', () => {
     let gameMusic, buttonSound;
     function playSound(type) { try { if (type === 'game') { if (!gameMusic) gameMusic = new Audio('game.mp3'); gameMusic.volume = 0.3; gameMusic.play().catch(e => {}); } else { if (!buttonSound) buttonSound = new Audio('button.mp3'); buttonSound.volume = 0.5; buttonSound.currentTime = 0; buttonSound.play().catch(e => {}); } } catch (e) {} }
 
-    // --- MASTER FLOW ---
     acceptBtn.addEventListener('click', () => {
         playSound('button');
         rulesOverlay.classList.add('hidden');
-        
-        // --- THE PRE-WARMING FIX ---
-        fetch(`${BACKEND_URL}/status`).catch(err => console.log("Pre-warm request sent."));
-        buildNameForm();
+        buildMainApp();
     });
 
-    // --- STAGE 1: NAME FORM ---
-    function buildNameForm() {
+    function buildMainApp() {
         appContainer.innerHTML = `
-            <div class="app-scene">
-                <header class="main-header">
-                    <h1 class="main-title">CAFE RITE</h1>
-                    <p class="sub-title">One Last Step...</p>
-                </header>
-                <main class="scene-container">
-                    <div class="form-container">
-                        <div class="input-group">
-                            <span class="input-icon">🧑</span>
-                            <input type="text" id="user-name" class="form-input" placeholder="Enter Your Name">
-                        </div>
-                        <div class="input-group">
-                             <span class="input-icon">🍜</span>
-                            <input type="text" id="user-food" class="form-input" placeholder="Enter Your Favorite Food">
-                        </div>
-                        <button id="next-btn" class="next-btn">CHECK MY LUCK</button>
-                    </div>
-                </main>
-                <footer class="main-footer"></footer>
-            </div>`;
-
-        const nextBtn = document.getElementById('next-btn');
-        nextBtn.addEventListener('click', () => {
-            playSound('button');
-            buildGameApp();
-        });
-    }
-
-    // --- STAGE 2: GAME APP ---
-    function buildGameApp() {
-        appContainer.innerHTML = `
-            <div class="app-scene">
+            <div id="main-container" class="app-scene">
                 <header class="main-header"><h1 class="main-title">CAFE RITE</h1><p class="sub-title">Pick a Lucky Box</p><p class="win-condition"><span>🍔</span> = ( WINNER ) ₹200 Free Food Order</p></header>
                 <main class="scene-container">
                     <div id="game-grid" class="game-grid"></div>
@@ -67,41 +31,40 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>`;
         
         playSound('game');
-        // The game grid now appears instantly. The check happens when a box is clicked.
-        createGameGrid();
+        initializeGame();
     }
 
-    // --- CORE GAME LOGIC (Unbreakable & Simplified) ---
-    function createGameGrid() {
-        const gameGrid = document.getElementById('game-grid'); if (!gameGrid) return;
-        gameGrid.innerHTML = '';
-        for (let i = 0; i < 9; i++) {
-            const box = document.createElement('div');
-            box.className = 'game-box';
-            box.addEventListener('click', handleBoxClick, { once: true });
-            box.innerHTML = `<div class="box-face box-front"></div><div class="box-face box-back"></div>`;
-            gameGrid.appendChild(box);
-        }
-    }
-    
-    async function handleBoxClick(event) {
-        playSound('button');
-        const clickedBox = event.currentTarget;
-        const allBoxes = document.querySelectorAll('.game-box');
-        allBoxes.forEach(b => b.classList.add('is-disabled'));
-        clickedBox.querySelector('.box-front').innerHTML = '<div class="loading-spinner"></div>';
-        
-        // Check cooldown status right before playing
+    // --- CORE GAME LOGIC (Unbreakable & Simple) ---
+    function initializeGame() {
         const lastPlayed = localStorage.getItem('cafeRiteLastPlayed');
         if (lastPlayed) {
             const timeSince = Date.now() - parseInt(lastPlayed, 10);
             const cooldown = 24 * 60 * 60 * 1000;
             if (timeSince < cooldown) {
                 showCooldownTimer(cooldown - timeSince);
-                return; // Stop the game if on cooldown
+                return;
             }
         }
+        const winnerExpiry = localStorage.getItem('cafeRiteWinnerExpiry');
+        if (winnerExpiry && Date.now() < parseInt(winnerExpiry, 10)) {
+            showWinnerScreenFromStorage();
+            return;
+        }
+        createGameGrid();
+    }
+    
+    function createGameGrid() {
+        const gameGrid = document.getElementById('game-grid'); const cooldownMessage = document.getElementById('cooldown-message'); if (!gameGrid || !cooldownMessage) return;
+        gameGrid.style.display = 'grid'; cooldownMessage.classList.add('hidden'); gameGrid.innerHTML = '';
+        for (let i = 0; i < 9; i++) { const box = document.createElement('div'); box.className = 'game-box'; box.addEventListener('click', handleBoxClick, { once: true }); box.innerHTML = `<div class="box-face box-front"></div><div class="box-face box-back"></div>`; gameGrid.appendChild(box); }
+    }
 
+    async function handleBoxClick(event) {
+        playSound('button');
+        const clickedBox = event.currentTarget;
+        document.querySelectorAll('.game-box').forEach(b => b.classList.add('is-disabled'));
+        clickedBox.querySelector('.box-front').innerHTML = '<div class="loading-spinner"></div>';
+        
         try {
             const response = await fetch(`${BACKEND_URL}/play`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ deviceId: getDeviceId() }) });
             if (!response.ok) throw new Error(`Server Error: ${response.status}`);
@@ -109,8 +72,8 @@ document.addEventListener('DOMContentLoaded', () => {
             playAnimations(clickedBox, result);
         } catch (error) {
             console.error("CRITICAL: Game server connection failed.", error);
-            alert("Sorry, the game server could not be reached. Please check your internet and try again.");
-            allBoxes.forEach(b => {
+            alert("Sorry, the game server is busy. Please refresh and try again.");
+            document.querySelectorAll('.game-box').forEach(b => {
                 b.classList.remove('is-disabled');
                 const front = b.querySelector('.box-front');
                 if (front) front.innerHTML = '';
@@ -122,8 +85,15 @@ document.addEventListener('DOMContentLoaded', () => {
         populateAllBoxes(result.items);
         const clickedIndex = Array.from(clickedBox.parentNode.children).indexOf(clickedBox);
         const finalResult = { ...result, win: result.items[clickedIndex] === '🍔' };
+        
+        // Remove spinner and flip
+        clickedBox.querySelector('.box-front').innerHTML = '';
         clickedBox.classList.add('is-flipped');
-        setTimeout(() => { showResult(finalResult); setDailyLock(); }, 800);
+        
+        setTimeout(() => {
+            showResult(finalResult);
+            setDailyLock();
+        }, 800);
     }
     
     function populateAllBoxes(items) { document.querySelectorAll('.game-box').forEach((box, i) => { if(box) box.querySelector('.box-back').innerHTML = items[i]; }); }
@@ -150,14 +120,14 @@ document.addEventListener('DOMContentLoaded', () => {
         setTimeout(() => resultOverlay.classList.add('visible'), 10);
     }
     
+    function showWinnerScreenFromStorage() { const sceneContainer = document.querySelector('.scene-container'); const resultOverlay = document.getElementById('result-overlay'); const resultImage = document.getElementById('result-image'); const winnerCodeContainer = document.getElementById('winner-code-container'); const winnerCodeEl = document.getElementById('winner-code'); if(!sceneContainer) return; sceneContainer.innerHTML = ''; resultImage.src = 'lucky.png'; winnerCodeEl.textContent = localStorage.getItem('cafeRiteWinnerCode'); winnerCodeContainer.classList.remove('hidden'); resultOverlay.classList.remove('hidden'); resultOverlay.classList.add('visible'); }
+    function getDeviceId() { let id = localStorage.getItem('cafeRiteDeviceId'); if (!id) { id = 'device-' + Date.now() + Math.random(); localStorage.setItem('cafeRiteDeviceId', id); } return id; }
+    function setDailyLock() { localStorage.setItem('cafeRiteLastPlayed', Date.now()); }
     function showCooldownTimer(msLeft) {
         const sceneContainer = document.querySelector('.scene-container'); if(!sceneContainer) return;
         sceneContainer.innerHTML = `<div id="cooldown-message" class="cooldown-message"><p class="cooldown-icon">🕒</p><h2>YOUR NEXT CHANCE IS IN</h2><p id="timer-text" class="timer-text"></p></div>`;
         const timerText = document.getElementById('timer-text');
-        let interval = setInterval(() => { msLeft -= 1000; if (msLeft <= 0) { clearInterval(interval); buildGameApp(); return; } const h = Math.floor(msLeft / 3600000); const m = Math.floor((msLeft % 3600000) / 60000); const s = Math.floor((msLeft % 60000) / 1000); if(timerText) timerText.textContent = `${pad(h)}:${pad(m)}:${pad(s)}`; }, 1000);
+        let interval = setInterval(() => { msLeft -= 1000; if (msLeft <= 0) { clearInterval(interval); buildMainApp(); return; } const h = Math.floor(msLeft / 3600000); const m = Math.floor((msLeft % 3600000) / 60000); const s = Math.floor((msLeft % 60000) / 1000); if(timerText) timerText.textContent = `${pad(h)}:${pad(m)}:${pad(s)}`; }, 1000);
     }
-    
-    function getDeviceId() { let id = localStorage.getItem('cafeRiteDeviceId'); if (!id) { id = 'device-' + Date.now() + Math.random(); localStorage.setItem('cafeRiteDeviceId', id); } return id; }
-    function setDailyLock() { localStorage.setItem('cafeRiteLastPlayed', Date.now()); }
     function pad(num) { return num < 10 ? '0' + num : num; }
 });
