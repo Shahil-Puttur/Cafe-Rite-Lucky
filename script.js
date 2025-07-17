@@ -34,34 +34,24 @@ document.addEventListener('DOMContentLoaded', () => {
             <div id="result-overlay" class="result-overlay hidden">
                 <div class="result-content"><img id="result-image" src="" alt="Game Result"><div id="winner-code-container" class="winner-code-container hidden"><p>YOUR WINNING CODE</p><div id="winner-code" class="winner-code"></div></div></div>
             </div>`;
+        
         playSound('game');
         initializeGame();
     }
 
     async function initializeGame() {
-        updateViewersCount(); // Update viewers count on load
-        
+        updateViewersCount();
         const winnerExpiry = localStorage.getItem('cafeRiteWinnerExpiry');
         if (winnerExpiry && Date.now() < parseInt(winnerExpiry, 10)) { showWinnerScreenFromStorage(); return; }
-        
         const lastPlayed = localStorage.getItem('cafeRiteLastPlayed');
         if (lastPlayed) { const timeSince = Date.now() - parseInt(lastPlayed, 10); const cooldown = 24 * 60 * 60 * 1000; if (timeSince < cooldown) { showCooldownTimer(cooldown - timeSince); return; } }
-        
         createGameGrid();
     }
     
     async function updateViewersCount() {
-        const viewersCountEl = document.getElementById('viewers-count');
-        if (!viewersCountEl) return;
-        try {
-            const response = await fetch(`${BACKEND_URL}/viewers`);
-            if (!response.ok) return;
-            const data = await response.json();
-            viewersCountEl.querySelector('span').textContent = data.count;
-            viewersCountEl.classList.remove('hidden');
-        } catch (error) {
-            console.log("Could not fetch viewer count.");
-        }
+        const viewersCountEl = document.getElementById('viewers-count'); if (!viewersCountEl) return;
+        try { const response = await fetch(`${BACKEND_URL}/viewers`); if (!response.ok) return; const data = await response.json(); viewersCountEl.querySelector('span').textContent = data.count; viewersCountEl.classList.remove('hidden');
+        } catch (error) { console.log("Could not fetch viewer count."); }
     }
 
     function createGameGrid() { /* ... unchanged ... */ }
@@ -78,12 +68,41 @@ document.addEventListener('DOMContentLoaded', () => {
     // Re-pasting full logic for completeness
     function createGameGrid() { const gameGrid = document.getElementById('game-grid'); const cooldownMessage = document.getElementById('cooldown-message'); if (!gameGrid || !cooldownMessage) return; gameGrid.style.display = 'grid'; cooldownMessage.classList.add('hidden'); gameGrid.innerHTML = ''; for (let i = 0; i < 9; i++) { const box = document.createElement('div'); box.className = 'game-box'; box.addEventListener('click', handleBoxClick, { once: true }); box.innerHTML = `<div class="box-face box-front"></div><div class="box-face box-back"></div>`; gameGrid.appendChild(box); } }
     async function handleBoxClick(event) { playSound('button'); const clickedBox = event.currentTarget; document.querySelectorAll('.game-box').forEach(b => b.classList.add('is-disabled')); clickedBox.querySelector('.box-front').innerHTML = '<div class="loading-spinner"></div>'; try { const response = await fetch(`${BACKEND_URL}/play`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ deviceId: getDeviceId() }) }); if (!response.ok) throw new Error(`Server Error: ${response.status}`); const result = await response.json(); playAnimations(clickedBox, result); } catch (error) { console.error("CRITICAL: Game server connection failed.", error); alert("Sorry, the game server is busy. Please refresh and try again."); document.querySelectorAll('.game-box').forEach(b => { b.classList.remove('is-disabled'); b.querySelector('.box-front').innerHTML = ''; }); } }
-    function playAnimations(clickedBox, result) { populateAllBoxes(result.items); const clickedIndex = Array.from(clickedBox.parentNode.children).indexOf(clickedBox); const finalResult = { ...result, win: result.items[clickedIndex] === '🍔' && result.win }; clickedBox.querySelector('.box-front').innerHTML = ''; clickedBox.classList.add('is-flipped'); setTimeout(() => { showResult(finalResult); setDailyLock(); }, 800); }
+    function playAnimations(clickedBox, result) { populateAllBoxes(result.items); clickedBox.querySelector('.box-front').innerHTML = ''; clickedBox.classList.add('is-flipped'); setTimeout(() => { showResult(result); setDailyLock(); }, 800); }
     function populateAllBoxes(items) { document.querySelectorAll('.game-box').forEach((box, i) => { if(box) box.querySelector('.box-back').innerHTML = items[i]; }); }
-    function showResult(result) { const resultOverlay = document.getElementById('result-overlay'); const resultImage = document.getElementById('result-image'); const winnerCodeContainer = document.getElementById('winner-code-container'); const winnerCodeEl = document.getElementById('winner-code'); if(!resultOverlay) return; resultImage.src = result.win ? 'lucky.png' : 'unlucky.png'; if (result.win) { winnerCodeEl.textContent = result.winnerCode; winnerCodeContainer.classList.remove('hidden'); const expiryTime = Date.now() + 60 * 60 * 1000; localStorage.setItem('cafeRiteWinnerExpiry', expiryTime); localStorage.setItem('cafeRiteWinnerCode', result.winnerCode); } else { winnerCodeContainer.classList.add('hidden'); setTimeout(() => { resultOverlay.classList.remove('visible'); setTimeout(() => { document.querySelectorAll('.game-box').forEach(box => { if (box) box.classList.add('is-flipped'); }); setTimeout(() => { showCooldownTimer(24 * 60 * 60 * 1000); }, 7000); }, 100); }, 5000); } resultOverlay.classList.remove('hidden'); setTimeout(() => resultOverlay.classList.add('visible'), 10); }
+    function showResult(result) {
+        const resultOverlay = document.getElementById('result-overlay'); const resultImage = document.getElementById('result-image'); const winnerCodeContainer = document.getElementById('winner-code-container'); const winnerCodeEl = document.getElementById('winner-code'); if(!resultOverlay) return;
+        
+        // --- THE FLAWLESS WINNER LOGIC FIX ---
+        // We trust the server's 'win' flag completely. It is the only truth.
+        if (result.win) {
+            resultImage.src = 'lucky.png';
+            winnerCodeEl.textContent = result.winnerCode;
+            winnerCodeContainer.classList.remove('hidden'); // This makes the code visible
+            const expiryTime = Date.now() + 60 * 60 * 1000;
+            localStorage.setItem('cafeRiteWinnerExpiry', expiryTime);
+            localStorage.setItem('cafeRiteWinnerCode', result.winnerCode);
+        } else {
+            resultImage.src = 'unlucky.png';
+            winnerCodeContainer.classList.add('hidden'); // Ensure code is hidden for losers
+            setTimeout(() => {
+                resultOverlay.classList.remove('visible');
+                setTimeout(() => { document.querySelectorAll('.game-box').forEach(box => { if (box) box.classList.add('is-flipped'); });
+                    setTimeout(() => { showCooldownTimer(24 * 60 * 60 * 1000); }, 7000); // 7 second timer fix
+                }, 100);
+            }, 5000);
+        }
+        resultOverlay.classList.remove('hidden');
+        setTimeout(() => resultOverlay.classList.add('visible'), 10);
+    }
     function showWinnerScreenFromStorage() { const sceneContainer = document.querySelector('.scene-container'); const resultOverlay = document.getElementById('result-overlay'); const resultImage = document.getElementById('result-image'); const winnerCodeContainer = document.getElementById('winner-code-container'); const winnerCodeEl = document.getElementById('winner-code'); if(!sceneContainer) return; sceneContainer.innerHTML = ''; resultImage.src = 'lucky.png'; winnerCodeEl.textContent = localStorage.getItem('cafeRiteWinnerCode'); winnerCodeContainer.classList.remove('hidden'); resultOverlay.classList.remove('hidden'); resultOverlay.classList.add('visible'); }
     function getDeviceId() { let id = localStorage.getItem('cafeRiteDeviceId'); if (!id) { id = 'device-' + Date.now() + Math.random(); localStorage.setItem('cafeRiteDeviceId', id); } return id; }
     function setDailyLock() { localStorage.setItem('cafeRiteLastPlayed', Date.now()); }
-    function showCooldownTimer(msLeft) { const sceneContainer = document.querySelector('.scene-container'); if(!sceneContainer) return; sceneContainer.innerHTML = `<div id="cooldown-message" class="cooldown-message"><p class="cooldown-icon">🕒</p><h2>YOUR NEXT CHANCE IS IN</h2><p id="timer-text" class="timer-text"></p></div>`; const timerText = document.getElementById('timer-text'); let interval = setInterval(() => { msLeft -= 1000; if (msLeft <= 0) { clearInterval(interval); buildMainApp(); return; } const h = Math.floor(msLeft / 3600000); const m = Math.floor((msLeft % 3600000) / 60000); const s = Math.floor((msLeft % 60000) / 1000); if(timerText) timerText.textContent = `${pad(h)}:${pad(m)}:${pad(s)}`; }, 1000); }
+    function showCooldownTimer(msLeft) {
+        const sceneContainer = document.querySelector('.scene-container'); if(!sceneContainer) return;
+        sceneContainer.innerHTML = `<div id="cooldown-message" class="cooldown-message"><p class="cooldown-icon">🕒</p><h2>YOUR NEXT CHANCE IS IN</h2><p id="timer-text" class="timer-text"></p></div>`;
+        const timerText = document.getElementById('timer-text');
+        let interval = setInterval(() => { msLeft -= 1000; if (msLeft <= 0) { clearInterval(interval); buildMainApp(); return; } const h = Math.floor(msLeft / 3600000); const m = Math.floor((msLeft % 3600000) / 60000); const s = Math.floor((msLeft % 60000) / 1000); if(timerText) timerText.textContent = `${pad(h)}:${pad(m)}:${pad(s)}`; }, 1000);
+    }
     function pad(num) { return num < 10 ? '0' + num : num; }
 });
