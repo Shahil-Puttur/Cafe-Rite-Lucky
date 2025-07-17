@@ -1,4 +1,4 @@
-// --- The "Legendary" Engine --- //
+// --- The "Unbreakable" Engine --- //
 
 document.addEventListener('DOMContentLoaded', () => {
     const BACKEND_URL = 'https://shop-op4l.onrender.com';
@@ -25,9 +25,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     <p class="sub-title">Pick a Lucky Box</p>
                     <p class="win-condition"><span>🍔</span> = ( WINNER ) ₹200 Free Food Order</p>
                 </header>
-                <main class="scene-container">
-                    <div id="game-grid" class="game-grid"></div>
-                    <div id="cooldown-message" class="cooldown-message hidden"><p class="cooldown-icon">🕒</p><h2>YOUR NEXT CHANCE IS IN</h2><p id="timer-text" class="timer-text"></p></div>
+                <main id="scene-container" class="scene-container">
+                    <!-- Game will be built here by JS -->
                 </main>
                 <footer class="main-footer"></footer>
             </div>
@@ -37,42 +36,61 @@ document.addEventListener('DOMContentLoaded', () => {
         playSound('game');
         initializeGame();
     }
-    
-    // --- THE CHEATER DEFEAT: Professional Fingerprinting ---
-    let deviceFingerprint = null;
-    async function getDeviceId() {
-        if (deviceFingerprint) return deviceFingerprint;
-        if (window.fp) {
-            const fp = await window.fp.load();
-            const result = await fp.get();
-            deviceFingerprint = result.visitorId;
-            return deviceFingerprint;
-        }
-        // Fallback for safety
-        return 'fallback-' + (navigator.userAgent || '') + (navigator.language || '');
-    }
 
     async function initializeGame() {
+        const sceneContainer = document.getElementById('scene-container');
+        if (!sceneContainer) return;
+        
+        // --- THE UNBREAKABLE FIX: UI FIRST ---
+        // 1. Build the UI immediately so the user sees something.
+        sceneContainer.innerHTML = `
+            <div id="game-grid-container" style="position: relative;">
+                <div id="game-grid" class="game-grid"></div>
+                <div id="grid-loading-overlay" class="grid-loading-overlay">
+                    <div class="loading-spinner"></div>
+                </div>
+            </div>
+            <div id="cooldown-message" class="cooldown-message hidden"></div>
+        `;
+        createGameGrid(true); // Create the grid in a disabled state
         updateViewersCount();
-        const fingerprint = await getDeviceId();
+
+        // 2. Now, check the server in the background.
         try {
+            const fingerprint = await getDeviceId();
             const response = await fetch(`${BACKEND_URL}/check`, {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ fingerprint })
             });
             const data = await response.json();
+
+            // 3. Update the UI based on the server's response.
             if (!data.canPlay) {
                 showCooldownTimer(data.cooldownEnd - Date.now());
-                return;
+            } else {
+                // It's playable, remove the overlay and enable the boxes.
+                const overlay = document.getElementById('grid-loading-overlay');
+                if (overlay) overlay.remove();
+                document.querySelectorAll('.game-box').forEach(b => b.classList.remove('is-disabled'));
             }
         } catch (e) {
-            console.error("Could not check status, proceeding with caution.");
+            sceneContainer.innerHTML = `<div class="error-message">Could not connect to game server.<br>Please refresh.</div>`;
         }
-        createGameGrid();
     }
     
-    function createGameGrid() { const gameGrid = document.getElementById('game-grid'); const cooldownMessage = document.getElementById('cooldown-message'); if (!gameGrid || !cooldownMessage) return; gameGrid.style.display = 'grid'; cooldownMessage.classList.add('hidden'); gameGrid.innerHTML = ''; for (let i = 0; i < 9; i++) { const box = document.createElement('div'); box.className = 'game-box'; box.dataset.index = i; box.addEventListener('click', handleBoxClick, { once: true }); box.innerHTML = `<div class="box-face box-front"></div><div class="box-face box-back"></div>`; gameGrid.appendChild(box); } }
-    
+    function createGameGrid(disabled = false) {
+        const gameGrid = document.getElementById('game-grid'); if (!gameGrid) return;
+        gameGrid.innerHTML = '';
+        for (let i = 0; i < 9; i++) {
+            const box = document.createElement('div');
+            box.className = `game-box ${disabled ? 'is-disabled' : ''}`;
+            box.dataset.index = i;
+            box.addEventListener('click', handleBoxClick, { once: true });
+            box.innerHTML = `<div class="box-face box-front"></div><div class="box-face box-back"></div>`;
+            gameGrid.appendChild(box);
+        }
+    }
+
     async function handleBoxClick(event) {
         playSound('button');
         const clickedBox = event.currentTarget;
@@ -81,43 +99,34 @@ document.addEventListener('DOMContentLoaded', () => {
         clickedBox.querySelector('.box-front').innerHTML = '<div class="loading-spinner"></div>';
         try {
             const fingerprint = await getDeviceId();
-            const response = await fetch(`${BACKEND_URL}/play`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fingerprint: fingerprint, boxIndex: parseInt(boxIndex) }) });
+            const response = await fetch(`${BACKEND_URL}/play`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fingerprint, boxIndex: parseInt(boxIndex) }) });
             if (!response.ok) throw new Error(`Server Error: ${response.status}`);
             const result = await response.json();
             playAnimations(clickedBox, result);
-        } catch (error) { console.error("CRITICAL: Game server connection failed.", error); alert("Sorry, the game server is busy. Please refresh and try again."); document.querySelectorAll('.game-box').forEach(b => { b.classList.remove('is-disabled'); b.querySelector('.box-front').innerHTML = ''; }); }
-    }
-    
-    function playAnimations(clickedBox, result) { populateAllBoxes(result.items); clickedBox.querySelector('.box-front').innerHTML = ''; clickedBox.classList.add('is-flipped'); setTimeout(() => { showResult(result); }, 800); }
-    function populateAllBoxes(items) { document.querySelectorAll('.game-box').forEach((box, i) => { if(box) box.querySelector('.box-back').innerHTML = items[i]; }); }
-    
-    function showResult(result) {
-        const resultOverlay = document.getElementById('result-overlay'); const resultImage = document.getElementById('result-image'); const winnerCodeContainer = document.getElementById('winner-code-container'); const winnerCodeEl = document.getElementById('winner-code'); if(!resultOverlay) return;
-        resultImage.src = result.win ? 'lucky.png' : 'unlucky.png';
-        if (result.win) {
-            winnerCodeEl.textContent = result.winnerCode;
-            winnerCodeContainer.classList.remove('hidden');
-        } else {
-            winnerCodeContainer.classList.add('hidden');
-            setTimeout(() => {
-                resultOverlay.classList.remove('visible');
-                setTimeout(() => { document.querySelectorAll('.game-box').forEach(box => { if (box) box.classList.add('is-flipped'); });
-                    setTimeout(() => { showCooldownTimer(24 * 60 * 60 * 1000); }, 7000);
-                }, 100);
-            }, 5000);
+        } catch (error) {
+            alert("Sorry, the game server is busy. Please refresh and try again.");
+            // Reset UI on failure
+            clickedBox.querySelector('.box-front').innerHTML = '';
+            document.querySelectorAll('.game-box').forEach(b => b.classList.remove('is-disabled'));
         }
-        resultOverlay.classList.remove('hidden');
-        setTimeout(() => resultOverlay.classList.add('visible'), 10);
     }
     
-    function showCooldownTimer(msLeft) {
-        const sceneContainer = document.querySelector('.scene-container'); if(!sceneContainer) return;
-        sceneContainer.innerHTML = `<div id="cooldown-message" class="cooldown-message"><p class="cooldown-icon">🕒</p><h2>YOUR NEXT CHANCE IS IN</h2><p id="timer-text" class="timer-text"></p></div>`;
-        const timerText = document.getElementById('timer-text');
-        if (!timerText) return;
-        let interval = setInterval(() => { msLeft -= 1000; if (msLeft <= 0) { clearInterval(interval); buildMainApp(); return; } const h = Math.floor(msLeft / 3600000); const m = Math.floor((msLeft % 3600000) / 60000); const s = Math.floor((msLeft % 60000) / 1000); if(timerText) timerText.textContent = `${pad(h)}:${pad(m)}:${pad(s)}`; }, 1000);
-    }
-    
-    async function updateViewersCount() { const viewersCountEl = document.getElementById('viewers-count'); if (!viewersCountEl) return; try { const response = await fetch(`${BACKEND_URL}/viewers`); if (!response.ok) return; const data = await response.json(); viewersCountEl.querySelector('span').textContent = data.count; viewersCountEl.classList.remove('hidden'); } catch (error) { console.log("Could not fetch viewer count."); } }
+    function playAnimations(clickedBox, result) { /* ... unchanged ... */ }
+    function populateAllBoxes(items) { /* ... unchanged ... */ }
+    function showResult(result) { /* ... unchanged ... */ }
+    function getDeviceId() { /* ... unchanged ... */ }
+    function setDailyLock() { /* ... unchanged ... */ }
+    function showCooldownTimer(msLeft) { /* ... unchanged ... */ }
+    function pad(num) { /* ... unchanged ... */ }
+    async function updateViewersCount() { /* ... unchanged ... */ }
+
+    // Re-pasting full logic for completeness
+    function playAnimations(clickedBox, result) { populateAllBoxes(result.items); clickedBox.querySelector('.box-front').innerHTML = ''; clickedBox.classList.add('is-flipped'); setTimeout(() => { showResult(result); setDailyLock(); }, 800); }
+    function populateAllBoxes(items) { document.querySelectorAll('.game-box').forEach((box, i) => { if(box) box.querySelector('.box-back').innerHTML = items[i]; }); }
+    function showResult(result) { const resultOverlay = document.getElementById('result-overlay'); const resultImage = document.getElementById('result-image'); const winnerCodeContainer = document.getElementById('winner-code-container'); const winnerCodeEl = document.getElementById('winner-code'); if(!resultOverlay) return; resultImage.src = result.win ? 'lucky.png' : 'unlucky.png'; if (result.win) { winnerCodeEl.textContent = result.winnerCode; winnerCodeContainer.classList.remove('hidden'); const expiryTime = Date.now() + 60 * 60 * 1000; localStorage.setItem('cafeRiteWinnerExpiry', expiryTime); localStorage.setItem('cafeRiteWinnerCode', result.winnerCode); } else { winnerCodeContainer.classList.add('hidden'); setTimeout(() => { resultOverlay.classList.remove('visible'); setTimeout(() => { document.querySelectorAll('.game-box').forEach(box => { if (box) box.classList.add('is-flipped'); }); setTimeout(() => { showCooldownTimer(24 * 60 * 60 * 1000); }, 7000); }, 100); }, 5000); } resultOverlay.classList.remove('hidden'); setTimeout(() => resultOverlay.classList.add('visible'), 10); }
+    let deviceFingerprint = null; async function getDeviceId() { if (deviceFingerprint) return deviceFingerprint; if (window.FingerprintJS) { const fp = await FingerprintJS.load(); const result = await fp.get(); deviceFingerprint = result.visitorId; return deviceFingerprint; } return 'fallback-' + (navigator.userAgent || '') + (navigator.language || ''); }
+    function setDailyLock() { localStorage.setItem('cafeRiteLastPlayed', Date.now()); }
+    function showCooldownTimer(msLeft) { const sceneContainer = document.getElementById('scene-container'); if(!sceneContainer) return; sceneContainer.innerHTML = `<div id="cooldown-message" class="cooldown-message"><p class="cooldown-icon">🕒</p><h2>YOUR NEXT CHANCE IS IN</h2><p id="timer-text" class="timer-text"></p></div>`; const timerText = document.getElementById('timer-text'); if (!timerText) return; let interval = setInterval(() => { msLeft -= 1000; if (msLeft <= 0) { clearInterval(interval); buildMainApp(); return; } const h = Math.floor(msLeft / 3600000); const m = Math.floor((msLeft % 3600000) / 60000); const s = Math.floor((msLeft % 60000) / 1000); if(timerText) timerText.textContent = `${pad(h)}:${pad(m)}:${pad(s)}`; }, 1000); }
     function pad(num) { return num < 10 ? '0' + num : num; }
+    async function updateViewersCount() { const viewersCountEl = document.getElementById('viewers-count'); if (!viewersCountEl) return; try { const response = await fetch(`${BACKEND_URL}/viewers`); if (!response.ok) return; const data = await response.json(); viewersCountEl.querySelector('span').textContent = data.count; viewersCountEl.classList.remove('hidden'); } catch (error) { console.log("Could not fetch viewer count."); } }
 });
