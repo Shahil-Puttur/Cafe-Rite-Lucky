@@ -25,8 +25,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     <p class="sub-title">Pick a Lucky Box</p>
                     <p class="win-condition"><span>🍔</span> = ( WINNER ) ₹200 Free Food Order</p>
                 </header>
-                <main id="scene-container" class="scene-container">
+                <main class="scene-container">
                     <div id="game-grid" class="game-grid"></div>
+                    <div id="cooldown-message" class="cooldown-message hidden"><p class="cooldown-icon">🕒</p><h2>YOUR NEXT CHANCE IS IN</h2><p id="timer-text" class="timer-text"></p></div>
                 </main>
                 <footer class="main-footer"></footer>
             </div>
@@ -43,7 +44,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (deviceId) return deviceId;
         let id = localStorage.getItem('cafeRiteDeviceId');
         if (!id) {
-            id = 'device-' + Date.now() + Math.random().toString(36).substr(2, 9);
+            id = 'device-' + Date.now() + Math.random().toString(36).substr(2, 9) + '-' + (navigator.userAgent || '');
             localStorage.setItem('cafeRiteDeviceId', id);
         }
         deviceId = id;
@@ -94,14 +95,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 body: JSON.stringify({ deviceId: getDeviceId(), boxIndex: parseInt(boxIndex) })
             });
 
-            if (!response.ok) {
-                if (response.status === 429) { // Cooldown error from server
-                    const data = await response.json();
-                    showCooldownTimer(data.cooldownEnd - Date.now());
-                    return;
-                }
-                throw new Error(`Server Error: ${response.status}`);
+            if (response.status === 429) {
+                const data = await response.json();
+                showCooldownTimer(data.cooldownEnd - Date.now());
+                return;
             }
+            if (!response.ok) throw new Error(`Server Error: ${response.status}`);
             
             const result = await response.json();
             playAnimations(clickedBox, result);
