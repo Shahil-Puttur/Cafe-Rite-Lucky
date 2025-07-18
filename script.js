@@ -8,21 +8,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const appContainer = document.getElementById('app-container');
 
     let gameMusic, buttonSound;
-    function playSound(type) {
-        try {
-            // THE TYPO IS ANNIHILATED
-            if (type === 'game') {
-                if (!gameMusic) gameMusic = new Audio('game.mp3');
-                gameMusic.volume = 0.3;
-                gameMusic.play().catch(e => {});
-            } else {
-                if (!buttonSound) buttonSound = new Audio('button.mp3');
-                buttonSound.volume = 0.5;
-                buttonSound.currentTime = 0;
-                buttonSound.play().catch(e => {});
-            }
-        } catch (e) {}
-    }
+    function playSound(type) { try { if (type === 'game') { if (!gameMusic) gameMusic = new Audio('game.mp3'); gameMusic.volume = 0.3; gameMusic.play().catch(e => {}); } else { if (!buttonSound) buttonSound = new Audio('button.mp3'); buttonSound.volume = 0.5; buttonSound.currentTime = 0; buttonSound.play().catch(e => {}); } } catch (e) {} }
 
     acceptBtn.addEventListener('click', () => {
         playSound('button');
@@ -39,15 +25,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     <p class="sub-title">Pick a Lucky Box</p>
                     <p class="win-condition"><span>🍔</span> = ( WINNER ) ₹200 Free Food Order</p>
                 </header>
-                <main id="scene-container" class="scene-container">
-                    <!-- Game will be built here by JS -->
-                </main>
+                <main id="scene-container" class="scene-container"></main>
                 <footer class="main-footer"></footer>
             </div>
             <div id="result-overlay" class="result-overlay hidden">
                 <div class="result-content"><img id="result-image" src="" alt="Game Result"><div id="winner-code-container" class="winner-code-container hidden"><p>YOUR WINNING CODE</p><div id="winner-code" class="winner-code"></div></div></div>
             </div>`;
-        
         playSound('game');
         initializeGame();
     }
@@ -56,6 +39,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let deviceId = null;
     function getDeviceId() {
         if (deviceId) return deviceId;
+        // This creates a simple, fast, and effective ID stored locally.
         let id = localStorage.getItem('cafeRiteDeviceId');
         if (!id) {
             id = 'device-' + Date.now() + Math.random().toString(36).substr(2, 9);
@@ -67,9 +51,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // --- CORE GAME LOGIC (Unbreakable & Fast) ---
     async function initializeGame() {
-        // VIEWERS COUNT IS NOW CALLED AFTER THE UI IS BUILT
         updateViewersCount();
-        
         const lastPlayed = localStorage.getItem(`cafeRiteLastPlayed_${getDeviceId()}`);
         if (lastPlayed) {
             const timeSince = Date.now() - parseInt(lastPlayed, 10);
@@ -79,7 +61,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
         }
-        
         createGameGrid();
     }
     
@@ -112,11 +93,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 body: JSON.stringify({ deviceId: getDeviceId(), boxIndex: parseInt(boxIndex) })
             });
 
-            if (response.status === 429) { // Cooldown error from server
-                const data = await response.json();
-                showCooldownTimer(data.cooldownEnd - Date.now());
-                return;
-            }
             if (!response.ok) throw new Error(`Server Error: ${response.status}`);
             
             const result = await response.json();
@@ -151,6 +127,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         resultImage.src = result.win ? 'lucky.png' : 'unlucky.png';
         
+        setDailyLock(); // Set the lock for both winners and losers
+        
         if (result.win) {
             winnerCodeEl.textContent = result.winnerCode;
             winnerCodeContainer.classList.remove('hidden');
@@ -169,7 +147,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }, 5000);
         }
         
-        setDailyLock(); // Set the lock for both winners and losers
         resultOverlay.classList.remove('hidden');
         setTimeout(() => resultOverlay.classList.add('visible'), 10);
     }
@@ -199,7 +176,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 1000);
     }
     
-    function pad(num) { return num < 10 ? '0' + num : num; }
+    function pad(num) {
+        return num < 10 ? '0' + num : num;
+    }
 
     async function updateViewersCount() {
         const viewersCountEl = document.getElementById('viewers-count');
