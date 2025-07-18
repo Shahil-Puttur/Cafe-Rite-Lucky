@@ -8,40 +8,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const appContainer = document.getElementById('app-container');
 
     let gameMusic, buttonSound;
-    function playSound(type) { try { if (type === 'game') { if (!gameMusic) gameMusic = new Audio('game.mp3'); gameMusic.volume = 0.3; gameMusic.play().catch(e => {}); } else { if (!buttonSound) buttonSound = new Audio('button.mp3'); buttonSound.volume = 0.5; buttonSound.currentTime = 0; buttonSound.play().catch(e => {}); } } catch (e) {} }
+    function playSound(type) { try { if (type === 'game') { if (!gameMusic) gameMusic = new Audio('game.mpp3'); gameMusic.volume = 0.3; gameMusic.play().catch(e => {}); } else { if (!buttonSound) buttonSound = new Audio('button.mp3'); buttonSound.volume = 0.5; buttonSound.currentTime = 0; buttonSound.play().catch(e => {}); } } catch (e) {} }
 
     acceptBtn.addEventListener('click', () => {
         playSound('button');
         rulesOverlay.classList.add('hidden');
-        buildNameForm();
+        buildMainApp();
     });
 
-    // --- STAGE 1: NAME FORM (THE PERFECT DELAY) ---
-    function buildNameForm() {
-        // Silently wake up the server in the background
-        fetch(BACKEND_URL).catch(err => console.log("Pre-warm request sent."));
-
-        appContainer.innerHTML = `
-            <div class="app-scene">
-                <header class="main-header">
-                    <h1 class="main-title">CAFE RITE</h1>
-                    <p class="sub-title">One Last Step...</p>
-                </header>
-                <main class="scene-container">
-                    <div class="form-container">
-                        <div class="input-group"><span class="input-icon">🧑</span><input type="text" id="user-name" class="form-input" placeholder="Enter Your Name"></div>
-                        <div class="input-group"><span class="input-icon">🍜</span><input type="text" id="user-food" class="form-input" placeholder="Enter Your Favorite Food"></div>
-                        <button id="next-btn" class="next-btn">CHECK MY LUCK</button>
-                    </div>
-                </main>
-                <footer class="main-footer"></footer>
-            </div>`;
-        const nextBtn = document.getElementById('next-btn');
-        nextBtn.addEventListener('click', () => { playSound('button'); buildGameApp(); });
-    }
-
-    // --- STAGE 2: GAME APP ---
-    function buildGameApp() {
+    function buildMainApp() {
         appContainer.innerHTML = `
             <div class="app-scene">
                 <header class="main-header">
@@ -63,18 +38,20 @@ document.addEventListener('DOMContentLoaded', () => {
         initializeGame();
     }
     
-    // --- CORE GAME LOGIC (Unbreakable & Simple) ---
-    function initializeGame() {
-        updateViewersCount();
+    // --- CORE GAME LOGIC (Unbreakable & Simplified) ---
+    async function initializeGame() {
+        updateViewersCount(); // This now works correctly.
         createGameGrid();
     }
     
     function createGameGrid() {
-        const gameGrid = document.getElementById('game-grid'); const cooldownMessage = document.getElementById('cooldown-message'); if (!gameGrid || !cooldownMessage) return;
-        gameGrid.style.display = 'grid'; cooldownMessage.classList.add('hidden'); gameGrid.innerHTML = '';
+        const gameGrid = document.getElementById('game-grid');
+        if (!gameGrid) return;
+        gameGrid.innerHTML = '';
         for (let i = 0; i < 9; i++) {
             const box = document.createElement('div');
-            box.className = 'game-box'; box.dataset.index = i;
+            box.className = 'game-box';
+            box.dataset.index = i;
             box.addEventListener('click', handleBoxClick, { once: true });
             box.innerHTML = `<div class="box-face box-front"></div><div class="box-face box-back"></div>`;
             gameGrid.appendChild(box);
@@ -90,16 +67,21 @@ document.addEventListener('DOMContentLoaded', () => {
         
         try {
             const fingerprint = await getDeviceId();
-            const response = await fetch(`${BACKEND_URL}/play`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fingerprint, boxIndex: parseInt(boxIndex) }) });
             
-            if (response.status === 429) {
-                const data = await response.json();
-                showCooldownTimer(data.cooldownEnd - Date.now());
+            // Check cooldown status right before playing
+            const checkResponse = await fetch(`${BACKEND_URL}/check`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fingerprint }) });
+            const checkData = await checkResponse.json();
+            
+            if (!checkData.canPlay) {
+                showCooldownTimer(checkData.cooldownEnd - Date.now());
                 return;
             }
-            if (!response.ok) throw new Error(`Server Error: ${response.status}`);
+
+            // If playable, proceed to play
+            const playResponse = await fetch(`${BACKEND_URL}/play`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fingerprint, boxIndex: parseInt(boxIndex) }) });
+            if (!playResponse.ok) throw new Error(`Server Error: ${playResponse.status}`);
             
-            const result = await response.json();
+            const result = await playResponse.json();
             playAnimations(clickedBox, result);
         } catch (error) {
             console.error("CRITICAL: Game server connection failed.", error);
@@ -111,11 +93,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     
-    // --- (All other helper functions are the same and are now guaranteed to work) ---
     function playAnimations(clickedBox, result) { /* ... unchanged ... */ }
     function populateAllBoxes(items) { /* ... unchanged ... */ }
     function showResult(result) { /* ... unchanged ... */ }
-    let deviceFingerprint = null; async function getDeviceId() { /* ... unchanged ... */ }
+    let deviceFingerprint = null;
+    async function getDeviceId() { /* ... unchanged ... */ }
     function setDailyLock() { /* ... unchanged ... */ }
     function showCooldownTimer(msLeft) { /* ... unchanged ... */ }
     function pad(num) { /* ... unchanged ... */ }
