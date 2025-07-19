@@ -1,43 +1,26 @@
 // --- The "Legendary" Engine --- //
 
-document.addEventListener('DOMContentLoaded', () => {
-    const BACKEND_URL = 'https://shop-op4l.onrender.com';
-    const appContainer = document.getElementById('app-container');
-
-    // --- THE UNBREAKABLE FIX: THE INSTANTANEOUS GATEKEEPER ---
-    
-    // This is a lightning-fast check for Incognito/Private mode.
-    async function isIncognito() {
+// ── INCORRECT/PRIVATE MODE GATEKEEPER ──
+// This is your genius code. It runs instantly.
+;(async () => {
+    async function detectIncognito() {
         try {
             if (navigator.storage && navigator.storage.estimate) {
                 const { quota } = await navigator.storage.estimate();
-                // This quota is significantly smaller in Incognito mode in Chrome.
                 return quota < 120000000;
             }
-            // Fallback for Firefox and Safari
             const db = indexedDB.open('test');
-            return await new Promise((resolve, reject) => {
-                db.onerror = () => resolve(true); // Fails in private mode
+            return await new Promise(resolve => {
+                db.onerror = () => resolve(true);
                 db.onsuccess = () => resolve(false);
             });
         } catch (e) {
-            return true; // If anything fails, assume incognito for security
+            return true;
         }
-    }
-
-    // The main function that runs immediately on page load.
-    async function master_controller() {
-        const incognito = await isIncognito();
-        if (incognito) {
-            showIncognitoBlock();
-            return;
-        }
-        
-        // If not incognito, show the rules and start the game flow.
-        showRules();
     }
 
     function showIncognitoBlock() {
+        const appContainer = document.getElementById('app-container');
         appContainer.innerHTML = `
             <div class="block-container">
                 <div class="block-icon">🛡️</div>
@@ -46,7 +29,30 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
         `;
     }
+
+    const isIncognito = await detectIncognito();
+    if (isIncognito) {
+        showIncognitoBlock();
+        return; // STOP here in Incognito
+    }
     
+    // ✅ NOT private: call the real start function
+    master_controller();
+})();
+
+
+// --- The "Old is Gold" Game Logic --- //
+
+function master_controller() {
+    const BACKEND_URL = 'https://shop-op4l.onrender.com';
+    const appContainer = document.getElementById('app-container');
+
+    // Show rules as the first step for normal users
+    showRules();
+
+    let gameMusic, buttonSound;
+    function playSound(type) { try { if (type === 'game') { if (!gameMusic) gameMusic = new Audio('game.mp3'); gameMusic.volume = 0.3; gameMusic.play().catch(e => {}); } else { if (!buttonSound) buttonSound = new Audio('button.mp3'); buttonSound.volume = 0.5; buttonSound.currentTime = 0; buttonSound.play().catch(e => {}); } } catch (e) {} }
+
     function showRules() {
         appContainer.innerHTML = `
              <div id="rules-overlay" class="rules-overlay">
@@ -59,11 +65,6 @@ document.addEventListener('DOMContentLoaded', () => {
             buildMainApp();
         });
     }
-
-    // --- (The rest of the code is the "Old and Gold" version you loved, now it will run without issues) ---
-    
-    let gameMusic, buttonSound;
-    function playSound(type) { try { if (type === 'game') { if (!gameMusic) gameMusic = new Audio('game.mp3'); gameMusic.volume = 0.3; gameMusic.play().catch(e => {}); } else { if (!buttonSound) buttonSound = new Audio('button.mp3'); buttonSound.volume = 0.5; buttonSound.currentTime = 0; buttonSound.play().catch(e => {}); } } catch (e) {} }
 
     function buildMainApp() {
         appContainer.innerHTML += `
@@ -138,10 +139,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ deviceId: getDeviceId(), boxIndex: parseInt(boxIndex) })
             });
-            if (response.status === 429) {
-                showCooldownTimer(24 * 60 * 60 * 1000); // Start full timer if server detects cheating
-                return;
-            }
             if (!response.ok) throw new Error(`Server Error: ${response.status}`);
             const result = await response.json();
             playAnimations(clickedBox, result);
@@ -163,7 +160,6 @@ document.addEventListener('DOMContentLoaded', () => {
     function pad(num) { /* ... unchanged ... */ }
     async function updateViewersCount() { /* ... unchanged ... */ }
     
-    // Re-pasting full logic for completeness
     function playAnimations(clickedBox, result) { populateAllBoxes(result.items); clickedBox.querySelector('.box-front').innerHTML = ''; clickedBox.classList.add('is-flipped'); setTimeout(() => { showResult(result); }, 800); }
     function populateAllBoxes(items) { document.querySelectorAll('.game-box').forEach((box, i) => { if(box) box.querySelector('.box-back').innerHTML = items[i]; }); }
     function showResult(result) { const resultOverlay = document.getElementById('result-overlay'); const resultImage = document.getElementById('result-image'); const winnerCodeContainer = document.getElementById('winner-code-container'); const winnerCodeEl = document.getElementById('winner-code'); if(!resultOverlay) return; resultImage.src = result.win ? 'lucky.png' : 'unlucky.png'; setDailyLock(); if (result.win) { winnerCodeEl.textContent = result.winnerCode; winnerCodeContainer.classList.remove('hidden'); } else { winnerCodeContainer.classList.add('hidden'); setTimeout(() => { resultOverlay.classList.remove('visible'); setTimeout(() => { document.querySelectorAll('.game-box').forEach(box => { if (box) box.classList.add('is-flipped'); }); setTimeout(() => { showCooldownTimer(24 * 60 * 60 * 1000); }, 7000); }, 100); }, 5000); } resultOverlay.classList.remove('hidden'); setTimeout(() => resultOverlay.classList.add('visible'), 10); }
@@ -171,7 +167,4 @@ document.addEventListener('DOMContentLoaded', () => {
     function showCooldownTimer(msLeft) { const sceneContainer = document.getElementById('scene-container'); if(!sceneContainer) return; sceneContainer.innerHTML = `<div id="cooldown-message" class="cooldown-message"><p class="cooldown-icon">🕒</p><h2>YOUR NEXT CHANCE IS IN</h2><p id="timer-text" class="timer-text"></p></div>`; const timerText = document.getElementById('timer-text'); if (!timerText) return; let interval = setInterval(() => { msLeft -= 1000; if (msLeft <= 0) { clearInterval(interval); buildMainApp(); return; } const h = Math.floor(msLeft / 3600000); const m = Math.floor((msLeft % 3600000) / 60000); const s = Math.floor((msLeft % 60000) / 1000); if(timerText) timerText.textContent = `${pad(h)}:${pad(m)}:${pad(s)}`; }, 1000); }
     function pad(num) { return num < 10 ? '0' + num : num; }
     async function updateViewersCount() { const viewersCountEl = document.getElementById('viewers-count'); if (!viewersCountEl) return; try { const response = await fetch(`${BACKEND_URL}/viewers`); if (!response.ok) return; const data = await response.json(); viewersCountEl.querySelector('span').textContent = data.count; viewersCountEl.classList.remove('hidden'); } catch (error) { console.log("Could not fetch viewer count."); } }
-
-    // Start the entire process
-    master_controller();
-});
+}
