@@ -9,36 +9,31 @@ document.addEventListener('DOMContentLoaded', () => {
     // This is a lightning-fast check for Incognito/Private mode.
     async function isIncognito() {
         try {
-            if ('storage' in navigator && 'estimate' in navigator.storage) {
-                const { usage } = await navigator.storage.estimate();
-                if (usage === 0) return true; // A strong indicator in some browsers
+            if (navigator.storage && navigator.storage.estimate) {
+                const { quota } = await navigator.storage.estimate();
+                // This quota is significantly smaller in Incognito mode in Chrome.
+                return quota < 120000000;
             }
-            // The classic, fast check for Chromium browsers
-            const fs = window.RequestFileSystem || window.webkitRequestFileSystem;
-            if (!fs) { // Fallback for Firefox
-                 try {
-                    localStorage.setItem('__test__', '1');
-                    localStorage.removeItem('__test__');
-                    return false;
-                } catch (e) {
-                    return true;
-                }
-            }
-            return new Promise(resolve => fs(window.TEMPORARY, 100, () => resolve(false), () => resolve(true)));
+            // Fallback for Firefox and Safari
+            const db = indexedDB.open('test');
+            return await new Promise((resolve, reject) => {
+                db.onerror = () => resolve(true); // Fails in private mode
+                db.onsuccess = () => resolve(false);
+            });
         } catch (e) {
             return true; // If anything fails, assume incognito for security
         }
     }
 
-    // The main function that runs immediately
-    async function main() {
+    // The main function that runs immediately on page load.
+    async function master_controller() {
         const incognito = await isIncognito();
         if (incognito) {
             showIncognitoBlock();
             return;
         }
         
-        // If not incognito, show the rules
+        // If not incognito, show the rules and start the game flow.
         showRules();
     }
 
@@ -54,7 +49,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     function showRules() {
         appContainer.innerHTML = `
-            <div id="rules-overlay" class="rules-overlay">
+             <div id="rules-overlay" class="rules-overlay">
                 <div class="rules-content"><h2 class="rules-title">📜 RULES OF THE GAME</h2><div class="rules-list"><div class="rule-item"><span>✅</span><p><strong>One Scratch per Day:</strong> You get one chance every 24 hours.</p></div><div class="rule-item"><span>🏠</span><p><strong>Only Inside the Café:</strong> Valid only when scanned inside the café.</p></div><div class="rule-item"><span>🎁</span><p><strong>Win a ₹200 Free Food Offer:</strong> Show the winning code to the cashier.</p></div><div class="rule-item"><span>😅</span><p><strong>Didn’t Win?:</strong> No worries! Try again tomorrow.</p></div><div class="rule-item"><span>🔒</span><p><strong>No Misuse:</strong> The QR code is for real visitors only.</p></div></div><button id="accept-rules-btn" class="accept-btn">ACCEPT & PLAY</button></div>
             </div>`;
         const acceptBtn = document.getElementById('accept-rules-btn');
@@ -168,6 +163,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function pad(num) { /* ... unchanged ... */ }
     async function updateViewersCount() { /* ... unchanged ... */ }
     
+    // Re-pasting full logic for completeness
     function playAnimations(clickedBox, result) { populateAllBoxes(result.items); clickedBox.querySelector('.box-front').innerHTML = ''; clickedBox.classList.add('is-flipped'); setTimeout(() => { showResult(result); }, 800); }
     function populateAllBoxes(items) { document.querySelectorAll('.game-box').forEach((box, i) => { if(box) box.querySelector('.box-back').innerHTML = items[i]; }); }
     function showResult(result) { const resultOverlay = document.getElementById('result-overlay'); const resultImage = document.getElementById('result-image'); const winnerCodeContainer = document.getElementById('winner-code-container'); const winnerCodeEl = document.getElementById('winner-code'); if(!resultOverlay) return; resultImage.src = result.win ? 'lucky.png' : 'unlucky.png'; setDailyLock(); if (result.win) { winnerCodeEl.textContent = result.winnerCode; winnerCodeContainer.classList.remove('hidden'); } else { winnerCodeContainer.classList.add('hidden'); setTimeout(() => { resultOverlay.classList.remove('visible'); setTimeout(() => { document.querySelectorAll('.game-box').forEach(box => { if (box) box.classList.add('is-flipped'); }); setTimeout(() => { showCooldownTimer(24 * 60 * 60 * 1000); }, 7000); }, 100); }, 5000); } resultOverlay.classList.remove('hidden'); setTimeout(() => resultOverlay.classList.add('visible'), 10); }
@@ -177,5 +173,5 @@ document.addEventListener('DOMContentLoaded', () => {
     async function updateViewersCount() { const viewersCountEl = document.getElementById('viewers-count'); if (!viewersCountEl) return; try { const response = await fetch(`${BACKEND_URL}/viewers`); if (!response.ok) return; const data = await response.json(); viewersCountEl.querySelector('span').textContent = data.count; viewersCountEl.classList.remove('hidden'); } catch (error) { console.log("Could not fetch viewer count."); } }
 
     // Start the entire process
-    main();
+    master_controller();
 });
