@@ -1,53 +1,70 @@
 // --- The "Legendary" Engine --- //
 
-// ── INCORRECT/PRIVATE MODE GATEKEEPER ──
-// This is your genius code. It runs instantly.
-;(async () => {
-    async function detectIncognito() {
-        try {
-            if (navigator.storage && navigator.storage.estimate) {
-                const { quota } = await navigator.storage.estimate();
-                return quota < 120000000;
-            }
-            const db = indexedDB.open('test');
-            return await new Promise(resolve => {
-                db.onerror = () => resolve(true);
-                db.onsuccess = () => resolve(false);
-            });
-        } catch (e) {
-            return true;
-        }
-    }
+// ── THE MASTER HACKER INCOGNITO GATEKEEPER ──
+// This is your genius code. It runs instantly, before anything else.
+(function () {
+    const appContainer = document.getElementById('app-container');
 
     function showIncognitoBlock() {
-        const appContainer = document.getElementById('app-container');
         appContainer.innerHTML = `
             <div class="block-container">
                 <div class="block-icon">🛡️</div>
-                <h1 class="block-title">Incognito Mode Not Allowed</h1>
+                <h1 class="block-title">Incognito Tab Not Allowed</h1>
                 <p class="block-text">Please open this page in a normal browser tab to play the game.</p>
-            </div>
-        `;
+            </div>`;
     }
 
-    const isIncognito = await detectIncognito();
-    if (isIncognito) {
+    try {
+        localStorage.setItem('__test_incognito__', 'test');
+        localStorage.removeItem('__test_incognito__');
+        // If we are here, localStorage works. Now we check if the user is a returning player.
+        
+        // This is a unique ID for the browser, NOT the device.
+        let deviceId = localStorage.getItem('cafeRiteDeviceId');
+        if (!deviceId) {
+            deviceId = 'device-' + Date.now() + Math.random().toString(36).substr(2, 9);
+            localStorage.setItem('cafeRiteDeviceId', id);
+        }
+
+        const lastPlayed = localStorage.getItem(`cafeRiteLastPlayed_${deviceId}`);
+        if (lastPlayed) {
+            const timeSince = Date.now() - parseInt(lastPlayed, 10);
+            const cooldown = 24 * 60 * 60 * 1000;
+            if (timeSince < cooldown) {
+                // He has played. Show the timer.
+                // We will build a temporary timer that the main script will take over later.
+                appContainer.innerHTML = `<div id="cooldown-temp" class="block-container"><div class="block-icon">🕒</div><h1 class="block-title">Please Wait</h1><p class="block-text">You have already played today. Your next chance is coming soon.</p></div>`;
+            }
+        }
+        // If we reach here, the user is a new player or their cooldown is over.
+        // We do nothing and let the main script run.
+
+    } catch (e) {
+        // If localStorage fails, it is 99% certain they are in Incognito.
         showIncognitoBlock();
-        return; // STOP here in Incognito
+        // This throws an error to STOP the rest of the script from running.
+        throw new Error("Blocked Incognito user.");
     }
-    
-    // ✅ NOT private: call the real start function
-    master_controller();
 })();
 
 
 // --- The "Old is Gold" Game Logic --- //
 
-function master_controller() {
+document.addEventListener('DOMContentLoaded', () => {
     const BACKEND_URL = 'https://shop-op4l.onrender.com';
     const appContainer = document.getElementById('app-container');
 
-    // Show rules as the first step for normal users
+    // If the gatekeeper already showed a timer, just run the timer logic.
+    if (document.getElementById('cooldown-temp')) {
+        let deviceId = localStorage.getItem('cafeRiteDeviceId');
+        const lastPlayed = localStorage.getItem(`cafeRiteLastPlayed_${deviceId}`);
+        const timeSince = Date.now() - parseInt(lastPlayed, 10);
+        const cooldown = 24 * 60 * 60 * 1000;
+        showCooldownTimer(cooldown - timeSince);
+        return;
+    }
+
+    // Otherwise, start the normal game flow.
     showRules();
 
     let gameMusic, buttonSound;
@@ -99,15 +116,6 @@ function master_controller() {
     
     async function initializeGame() {
         updateViewersCount();
-        const lastPlayed = localStorage.getItem(`cafeRiteLastPlayed_${getDeviceId()}`);
-        if (lastPlayed) {
-            const timeSince = Date.now() - parseInt(lastPlayed, 10);
-            const cooldown = 24 * 60 * 60 * 1000;
-            if (timeSince < cooldown) {
-                showCooldownTimer(cooldown - timeSince);
-                return;
-            }
-        }
         createGameGrid();
     }
     
@@ -164,7 +172,7 @@ function master_controller() {
     function populateAllBoxes(items) { document.querySelectorAll('.game-box').forEach((box, i) => { if(box) box.querySelector('.box-back').innerHTML = items[i]; }); }
     function showResult(result) { const resultOverlay = document.getElementById('result-overlay'); const resultImage = document.getElementById('result-image'); const winnerCodeContainer = document.getElementById('winner-code-container'); const winnerCodeEl = document.getElementById('winner-code'); if(!resultOverlay) return; resultImage.src = result.win ? 'lucky.png' : 'unlucky.png'; setDailyLock(); if (result.win) { winnerCodeEl.textContent = result.winnerCode; winnerCodeContainer.classList.remove('hidden'); } else { winnerCodeContainer.classList.add('hidden'); setTimeout(() => { resultOverlay.classList.remove('visible'); setTimeout(() => { document.querySelectorAll('.game-box').forEach(box => { if (box) box.classList.add('is-flipped'); }); setTimeout(() => { showCooldownTimer(24 * 60 * 60 * 1000); }, 7000); }, 100); }, 5000); } resultOverlay.classList.remove('hidden'); setTimeout(() => resultOverlay.classList.add('visible'), 10); }
     function setDailyLock() { localStorage.setItem(`cafeRiteLastPlayed_${getDeviceId()}`, Date.now()); }
-    function showCooldownTimer(msLeft) { const sceneContainer = document.getElementById('scene-container'); if(!sceneContainer) return; sceneContainer.innerHTML = `<div id="cooldown-message" class="cooldown-message"><p class="cooldown-icon">🕒</p><h2>YOUR NEXT CHANCE IS IN</h2><p id="timer-text" class="timer-text"></p></div>`; const timerText = document.getElementById('timer-text'); if (!timerText) return; let interval = setInterval(() => { msLeft -= 1000; if (msLeft <= 0) { clearInterval(interval); buildMainApp(); return; } const h = Math.floor(msLeft / 3600000); const m = Math.floor((msLeft % 3600000) / 60000); const s = Math.floor((msLeft % 60000) / 1000); if(timerText) timerText.textContent = `${pad(h)}:${pad(m)}:${pad(s)}`; }, 1000); }
+    function showCooldownTimer(msLeft) { const sceneContainer = document.getElementById('scene-container'); const mainHeader = document.querySelector('.main-header'); if(!sceneContainer || !mainHeader) { appContainer.innerHTML = `<div id="cooldown-message" class="cooldown-message"><p class="cooldown-icon">🕒</p><h2>YOUR NEXT CHANCE IS IN</h2><p id="timer-text" class="timer-text"></p></div>`; } else { mainHeader.style.display = 'none'; sceneContainer.innerHTML = `<div id="cooldown-message" class="cooldown-message"><p class="cooldown-icon">🕒</p><h2>YOUR NEXT CHANCE IS IN</h2><p id="timer-text" class="timer-text"></p></div>`; } const timerText = document.getElementById('timer-text'); if (!timerText) return; let interval = setInterval(() => { msLeft -= 1000; if (msLeft <= 0) { clearInterval(interval); localStorage.removeItem(`cafeRiteLastPlayed_${getDeviceId()}`); window.location.reload(); return; } const h = Math.floor(msLeft / 3600000); const m = Math.floor((msLeft % 3600000) / 60000); const s = Math.floor((msLeft % 60000) / 1000); if(timerText) timerText.textContent = `${pad(h)}:${pad(m)}:${pad(s)}`; }, 1000); }
     function pad(num) { return num < 10 ? '0' + num : num; }
     async function updateViewersCount() { const viewersCountEl = document.getElementById('viewers-count'); if (!viewersCountEl) return; try { const response = await fetch(`${BACKEND_URL}/viewers`); if (!response.ok) return; const data = await response.json(); viewersCountEl.querySelector('span').textContent = data.count; viewersCountEl.classList.remove('hidden'); } catch (error) { console.log("Could not fetch viewer count."); } }
-}
+            }
