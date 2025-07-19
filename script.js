@@ -1,70 +1,57 @@
 // --- The "Legendary" Engine --- //
 
 // ── THE MASTER HACKER INCOGNITO GATEKEEPER ──
-// This is your genius code. It runs instantly, before anything else.
-(function () {
+// This is your genius code. It runs instantly and stops the script if needed.
+(function() {
     const appContainer = document.getElementById('app-container');
 
-    function showIncognitoBlock() {
+    function showBlockScreen(title, message, icon = '🛡️') {
         appContainer.innerHTML = `
             <div class="block-container">
-                <div class="block-icon">🛡️</div>
-                <h1 class="block-title">Incognito Tab Not Allowed</h1>
-                <p class="block-text">Please open this page in a normal browser tab to play the game.</p>
+                <div class="block-icon">${icon}</div>
+                <h1 class="block-title">${title}</h1>
+                <p class="block-text">${message}</p>
             </div>`;
     }
 
     try {
-        localStorage.setItem('__test_incognito__', 'test');
-        localStorage.removeItem('__test_incognito__');
-        // If we are here, localStorage works. Now we check if the user is a returning player.
-        
-        // This is a unique ID for the browser, NOT the device.
+        // Test if localStorage is writable. This fails in most incognito modes.
+        localStorage.setItem('__incognito_test__', '1');
+        localStorage.removeItem('__incognito_test__');
+
+        // If it works, check for the cooldown.
         let deviceId = localStorage.getItem('cafeRiteDeviceId');
         if (!deviceId) {
-            deviceId = 'device-' + Date.now() + Math.random().toString(36).substr(2, 9);
-            localStorage.setItem('cafeRiteDeviceId', id);
-        }
-
-        const lastPlayed = localStorage.getItem(`cafeRiteLastPlayed_${deviceId}`);
-        if (lastPlayed) {
-            const timeSince = Date.now() - parseInt(lastPlayed, 10);
-            const cooldown = 24 * 60 * 60 * 1000;
-            if (timeSince < cooldown) {
-                // He has played. Show the timer.
-                // We will build a temporary timer that the main script will take over later.
-                appContainer.innerHTML = `<div id="cooldown-temp" class="block-container"><div class="block-icon">🕒</div><h1 class="block-title">Please Wait</h1><p class="block-text">You have already played today. Your next chance is coming soon.</p></div>`;
+            // This is a true first-time user in a normal tab.
+            // Do nothing and let the main script run.
+        } else {
+            const lastPlayed = localStorage.getItem(`cafeRiteLastPlayed_${deviceId}`);
+            if (lastPlayed) {
+                const timeSince = Date.now() - parseInt(lastPlayed, 10);
+                const cooldown = 24 * 60 * 60 * 1000; // 24 hours
+                if (timeSince < cooldown) {
+                    // This user has played recently. Block them and show the timer.
+                    showBlockScreen('Please Wait', 'You have already played today. Your next chance is coming soon.', '🕒');
+                    throw new Error("Blocked: User is on cooldown.");
+                }
             }
         }
-        // If we reach here, the user is a new player or their cooldown is over.
-        // We do nothing and let the main script run.
-
     } catch (e) {
-        // If localStorage fails, it is 99% certain they are in Incognito.
-        showIncognitoBlock();
-        // This throws an error to STOP the rest of the script from running.
-        throw new Error("Blocked Incognito user.");
+        // If localStorage fails, it's almost certainly Incognito/Private mode.
+        showBlockScreen('Incognito Mode Not Allowed', 'Please open this page in a normal browser tab to play the game.');
+        // This stops the rest of the script from executing.
+        throw new Error("Blocked: Incognito user.");
     }
 })();
 
 
 // --- The "Old is Gold" Game Logic --- //
-
+// This code will ONLY run if the gatekeeper above allows it.
 document.addEventListener('DOMContentLoaded', () => {
     const BACKEND_URL = 'https://shop-op4l.onrender.com';
     const appContainer = document.getElementById('app-container');
 
-    // If the gatekeeper already showed a timer, just run the timer logic.
-    if (document.getElementById('cooldown-temp')) {
-        let deviceId = localStorage.getItem('cafeRiteDeviceId');
-        const lastPlayed = localStorage.getItem(`cafeRiteLastPlayed_${deviceId}`);
-        const timeSince = Date.now() - parseInt(lastPlayed, 10);
-        const cooldown = 24 * 60 * 60 * 1000;
-        showCooldownTimer(cooldown - timeSince);
-        return;
-    }
-
-    // Otherwise, start the normal game flow.
+    // Since the gatekeeper already checked, we just show the rules.
     showRules();
 
     let gameMusic, buttonSound;
@@ -114,7 +101,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return deviceId;
     }
     
-    async function initializeGame() {
+    function initializeGame() {
         updateViewersCount();
         createGameGrid();
     }
@@ -175,4 +162,4 @@ document.addEventListener('DOMContentLoaded', () => {
     function showCooldownTimer(msLeft) { const sceneContainer = document.getElementById('scene-container'); const mainHeader = document.querySelector('.main-header'); if(!sceneContainer || !mainHeader) { appContainer.innerHTML = `<div id="cooldown-message" class="cooldown-message"><p class="cooldown-icon">🕒</p><h2>YOUR NEXT CHANCE IS IN</h2><p id="timer-text" class="timer-text"></p></div>`; } else { mainHeader.style.display = 'none'; sceneContainer.innerHTML = `<div id="cooldown-message" class="cooldown-message"><p class="cooldown-icon">🕒</p><h2>YOUR NEXT CHANCE IS IN</h2><p id="timer-text" class="timer-text"></p></div>`; } const timerText = document.getElementById('timer-text'); if (!timerText) return; let interval = setInterval(() => { msLeft -= 1000; if (msLeft <= 0) { clearInterval(interval); localStorage.removeItem(`cafeRiteLastPlayed_${getDeviceId()}`); window.location.reload(); return; } const h = Math.floor(msLeft / 3600000); const m = Math.floor((msLeft % 3600000) / 60000); const s = Math.floor((msLeft % 60000) / 1000); if(timerText) timerText.textContent = `${pad(h)}:${pad(m)}:${pad(s)}`; }, 1000); }
     function pad(num) { return num < 10 ? '0' + num : num; }
     async function updateViewersCount() { const viewersCountEl = document.getElementById('viewers-count'); if (!viewersCountEl) return; try { const response = await fetch(`${BACKEND_URL}/viewers`); if (!response.ok) return; const data = await response.json(); viewersCountEl.querySelector('span').textContent = data.count; viewersCountEl.classList.remove('hidden'); } catch (error) { console.log("Could not fetch viewer count."); } }
-            }
+                                 }
