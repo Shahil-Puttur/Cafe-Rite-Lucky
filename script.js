@@ -22,7 +22,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function playSound(type) { try { if (type === 'game') { if (gameMusic) { gameMusic.volume = 0.3; gameMusic.play().catch(e => {}); } } else { if (buttonSound) { buttonSound.currentTime = 0; buttonSound.volume = 0.5; buttonSound.play().catch(e => {}); } } } catch (e) {} }
     
-    // --- THE "OLD AND GOLD" FAST ID ---
     function getDeviceId() {
         if (deviceId) return deviceId;
         let id = localStorage.getItem('cafeRiteDeviceId');
@@ -73,12 +72,16 @@ document.addEventListener('DOMContentLoaded', () => {
         clickedBox.querySelector('.box-front').innerHTML = '<div class="loading-spinner"></div>';
         
         try {
-            // The request is now simpler and faster
             const response = await fetch(`${BACKEND_URL}/play`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ boxIndex: parseInt(boxIndex) })
+                body: JSON.stringify({ deviceId: getDeviceId(), boxIndex: parseInt(boxIndex) })
             });
+            if (response.status === 429) {
+                const data = await response.json();
+                showCooldownTimer(data.cooldownEnd - Date.now());
+                return;
+            }
             if (!response.ok) throw new Error(`Server Error: ${response.status}`);
             const result = await response.json();
             playAnimations(clickedBox, result);
@@ -123,10 +126,25 @@ document.addEventListener('DOMContentLoaded', () => {
     
     function setDailyLock() { localStorage.setItem(`cafeRiteLastPlayed_${getDeviceId()}`, Date.now()); }
 
+    // --- THE FLAWLESS TIMER FIX ---
     function showCooldownTimer(msLeft) {
         gameGrid.classList.add('hidden');
         cooldownMessage.classList.remove('hidden');
         const timerText = document.getElementById('timer-text');
+        
+        // This is your genius marketing message, perfected.
+        if (!document.querySelector('.cooldown-note')) {
+            const note = document.createElement('p');
+            note.className = 'cooldown-note';
+            note.innerHTML = `
+                <b>Please Note:</b><br>
+                To ensure fairness, this offer is only eligible for users on a normal Google Chrome tab. ✅<br>
+                Plays from Incognito tabs or other browsers might not be valid for prizes. 🛡️<br>
+                Remember to try your luck once every day! Have a nice day! 😊
+            `;
+            cooldownMessage.appendChild(note);
+        }
+
         if (!timerText) return;
         
         let interval = setInterval(() => {
