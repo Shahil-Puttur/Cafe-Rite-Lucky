@@ -37,12 +37,6 @@ document.addEventListener('DOMContentLoaded', () => {
         playSound('game');
         updateViewersCount();
         
-        const winnerExpiry = localStorage.getItem('cafeRiteWinnerExpiry');
-        if (winnerExpiry && Date.now() < parseInt(winnerExpiry, 10)) {
-            showWinnerScreenFromStorage();
-            return;
-        }
-
         const lastPlayed = localStorage.getItem(`cafeRiteLastPlayed_${getDeviceId()}`);
         if (lastPlayed) {
             const timeSince = Date.now() - parseInt(lastPlayed, 10);
@@ -115,13 +109,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (result.win) {
             winnerCodeEl.textContent = result.winnerCode;
             winnerCodeContainer.classList.remove('hidden');
-            
-            // --- THE 100 CRORE SURGICAL STRIKE ---
-            // The old duration was 60 minutes. The new duration is 20 minutes.
-            const expiryTime = Date.now() + 20 * 60 * 1000; // 20 minutes from now
+            const expiryTime = Date.now() + 20 * 60 * 1000;
             localStorage.setItem('cafeRiteWinnerExpiry', expiryTime);
             localStorage.setItem('cafeRiteWinnerCode', result.winnerCode);
-            
         } else {
             winnerCodeContainer.classList.add('hidden');
             setTimeout(() => {
@@ -137,7 +127,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function showWinnerScreenFromStorage() {
-        mainApp.classList.add('hidden'); // Hide the main game
+        mainApp.classList.add('hidden');
         resultImage.src = 'lucky.png';
         winnerCodeEl.textContent = localStorage.getItem('cafeRiteWinnerCode');
         winnerCodeContainer.classList.remove('hidden');
@@ -147,10 +137,26 @@ document.addEventListener('DOMContentLoaded', () => {
     
     function setDailyLock() { localStorage.setItem(`cafeRiteLastPlayed_${getDeviceId()}`, Date.now()); }
 
+    // --- THE FLAWLESS NOTE FIX ---
     function showCooldownTimer(msLeft) {
         gameGrid.classList.add('hidden');
         cooldownMessage.classList.remove('hidden');
         const timerText = document.getElementById('timer-text');
+        
+        // This is your genius marketing message, restored and perfected.
+        if (!document.querySelector('.cooldown-note')) {
+            const note = document.createElement('p');
+            note.className = 'cooldown-note';
+            note.innerHTML = `
+                <b>Note:</b><br>
+                Only Google Chrome users are eligible for this offer. ✅<br>
+                For security, Incognito tabs and other browsers are not eligible for prizes. 🛡️<br>
+                Try once a day using our Cafe Rite scanner! 😀<br>
+                Have a nice day! 😊
+            `;
+            cooldownMessage.appendChild(note);
+        }
+
         if (!timerText) return;
         
         let interval = setInterval(() => {
