@@ -7,7 +7,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const rulesOverlay = document.getElementById('rules-overlay');
     const acceptBtn = document.getElementById('accept-rules-btn');
     const mainApp = document.getElementById('main-app');
-    const sceneContainer = document.getElementById('scene-container');
     const resultOverlay = document.getElementById('result-overlay');
     const resultImage = document.getElementById('result-image');
     const winnerCodeContainer = document.getElementById('winner-code-container');
@@ -38,6 +37,12 @@ document.addEventListener('DOMContentLoaded', () => {
         playSound('game');
         updateViewersCount();
         
+        const winnerExpiry = localStorage.getItem('cafeRiteWinnerExpiry');
+        if (winnerExpiry && Date.now() < parseInt(winnerExpiry, 10)) {
+            showWinnerScreenFromStorage();
+            return;
+        }
+
         const lastPlayed = localStorage.getItem(`cafeRiteLastPlayed_${getDeviceId()}`);
         if (lastPlayed) {
             const timeSince = Date.now() - parseInt(lastPlayed, 10);
@@ -110,6 +115,13 @@ document.addEventListener('DOMContentLoaded', () => {
         if (result.win) {
             winnerCodeEl.textContent = result.winnerCode;
             winnerCodeContainer.classList.remove('hidden');
+            
+            // --- THE 100 CRORE SURGICAL STRIKE ---
+            // The old duration was 60 minutes. The new duration is 20 minutes.
+            const expiryTime = Date.now() + 20 * 60 * 1000; // 20 minutes from now
+            localStorage.setItem('cafeRiteWinnerExpiry', expiryTime);
+            localStorage.setItem('cafeRiteWinnerCode', result.winnerCode);
+            
         } else {
             winnerCodeContainer.classList.add('hidden');
             setTimeout(() => {
@@ -123,28 +135,22 @@ document.addEventListener('DOMContentLoaded', () => {
         resultOverlay.classList.remove('hidden');
         setTimeout(() => resultOverlay.classList.add('visible'), 10);
     }
+
+    function showWinnerScreenFromStorage() {
+        mainApp.classList.add('hidden'); // Hide the main game
+        resultImage.src = 'lucky.png';
+        winnerCodeEl.textContent = localStorage.getItem('cafeRiteWinnerCode');
+        winnerCodeContainer.classList.remove('hidden');
+        resultOverlay.classList.remove('hidden');
+        resultOverlay.classList.add('visible');
+    }
     
     function setDailyLock() { localStorage.setItem(`cafeRiteLastPlayed_${getDeviceId()}`, Date.now()); }
 
-    // --- THE FLAWLESS TIMER FIX ---
     function showCooldownTimer(msLeft) {
         gameGrid.classList.add('hidden');
         cooldownMessage.classList.remove('hidden');
         const timerText = document.getElementById('timer-text');
-        
-        // This is your genius marketing message, perfected.
-        if (!document.querySelector('.cooldown-note')) {
-            const note = document.createElement('p');
-            note.className = 'cooldown-note';
-            note.innerHTML = `
-                <b>Please Note:</b><br>
-                To ensure fairness, this offer is only eligible for users on a normal Google Chrome tab. ✅<br>
-                Plays from Incognito tabs or other browsers might not be valid for prizes. 🛡️<br>
-                Remember to try your luck once every day! Have a nice day! 😊
-            `;
-            cooldownMessage.appendChild(note);
-        }
-
         if (!timerText) return;
         
         let interval = setInterval(() => {
