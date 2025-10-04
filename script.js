@@ -257,6 +257,17 @@ document.addEventListener('DOMContentLoaded', () => {
         playSound('button');
         hideOverlay(rulesOverlay);
         showOverlay(statusUploadOverlay);
+
+        // --- NEW AUTO-SCROLL LOGIC ---
+        // After 3 seconds, smoothly scroll to the bottom of the upload page
+        setTimeout(() => {
+            if (statusUploadOverlay && !statusUploadOverlay.classList.contains('hidden')) {
+                statusUploadOverlay.scrollTo({
+                    top: statusUploadOverlay.scrollHeight,
+                    behavior: 'smooth'
+                });
+            }
+        }, 3000);
     });
 
     uploadScreenshotBtn.addEventListener('click', () => {
