@@ -3,9 +3,13 @@
 document.addEventListener('DOMContentLoaded', () => {
     const BACKEND_URL = 'https://shop-op4l.onrender.com';
 
-    // Get all elements that exist on the page from the start
+    // --- DOM ELEMENTS ---
     const rulesOverlay = document.getElementById('rules-overlay');
     const acceptBtn = document.getElementById('accept-rules-btn');
+    const statusUploadOverlay = document.getElementById('status-upload-overlay');
+    const uploadScreenshotBtn = document.getElementById('upload-screenshot-btn');
+    const screenshotUploadInput = document.getElementById('screenshot-upload-input');
+    const uploadStatusText = document.getElementById('upload-status-text');
     const mainApp = document.getElementById('main-app');
     const resultOverlay = document.getElementById('result-overlay');
     const resultImage = document.getElementById('result-image');
@@ -109,9 +113,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (result.win) {
             winnerCodeEl.textContent = result.winnerCode;
             winnerCodeContainer.classList.remove('hidden');
-            const expiryTime = Date.now() + 20 * 60 * 1000;
-            localStorage.setItem('cafeRiteWinnerExpiry', expiryTime);
-            localStorage.setItem('cafeRiteWinnerCode', result.winnerCode);
         } else {
             winnerCodeContainer.classList.add('hidden');
             setTimeout(() => {
@@ -125,38 +126,14 @@ document.addEventListener('DOMContentLoaded', () => {
         resultOverlay.classList.remove('hidden');
         setTimeout(() => resultOverlay.classList.add('visible'), 10);
     }
-
-    function showWinnerScreenFromStorage() {
-        mainApp.classList.add('hidden');
-        resultImage.src = 'lucky.png';
-        winnerCodeEl.textContent = localStorage.getItem('cafeRiteWinnerCode');
-        winnerCodeContainer.classList.remove('hidden');
-        resultOverlay.classList.remove('hidden');
-        resultOverlay.classList.add('visible');
-    }
     
     function setDailyLock() { localStorage.setItem(`cafeRiteLastPlayed_${getDeviceId()}`, Date.now()); }
 
-    // --- THE FLAWLESS NOTE FIX ---
     function showCooldownTimer(msLeft) {
         gameGrid.classList.add('hidden');
         cooldownMessage.classList.remove('hidden');
         const timerText = document.getElementById('timer-text');
         
-        // This is your genius marketing message, restored and perfected.
-        if (!document.querySelector('.cooldown-note')) {
-            const note = document.createElement('p');
-            note.className = 'cooldown-note';
-            note.innerHTML = `
-                <b>Note:</b><br>
-                Only Google Chrome users are eligible for this offer. ✅<br>
-                For security, Incognito tabs and other browsers are not eligible for prizes. 🛡️<br>
-                Try once a day using our Cafe Rite scanner! 😀<br>
-                Have a nice day! 😊
-            `;
-            cooldownMessage.appendChild(note);
-        }
-
         if (!timerText) return;
         
         let interval = setInterval(() => {
@@ -187,10 +164,58 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (error) { console.log("Could not fetch viewer count."); }
     }
     
-    // --- MASTER FLOW ---
+    // --- NEW SCREENSHOT VERIFICATION LOGIC ---
+    async function verifyScreenshot(file) {
+        uploadStatusText.textContent = 'Analyzing screenshot...';
+        uploadStatusText.classList.remove('error');
+        uploadScreenshotBtn.disabled = true;
+
+        try {
+            const worker = await Tesseract.createWorker('eng');
+            const { data: { text } } = await worker.recognize(file);
+            await worker.terminate();
+            
+            const lowerCaseText = text.toLowerCase();
+            const hasMyStatus = lowerCaseText.includes('my status');
+            const hasLocation = lowerCaseText.includes('kattigenahalli');
+
+            if (hasMyStatus && hasLocation) {
+                uploadStatusText.textContent = 'Verification successful! Starting game...';
+                setTimeout(() => {
+                    statusUploadOverlay.classList.add('hidden');
+                    initializeGame();
+                }, 1500);
+            } else {
+                let errorMsg = "Verification failed. ";
+                if (!hasMyStatus) errorMsg += "'My status' text not found. ";
+                if (!hasLocation) errorMsg += "'KATTIGENAHALLI' text not found.";
+                throw new Error(errorMsg);
+            }
+        } catch (error) {
+            uploadStatusText.textContent = error.message || "Could not read image. Please upload original photo.";
+            uploadStatusText.classList.add('error');
+            uploadScreenshotBtn.disabled = false;
+        }
+    }
+
+    // --- MASTER FLOW (UPDATED) ---
     acceptBtn.addEventListener('click', () => {
         playSound('button');
         rulesOverlay.classList.add('hidden');
-        initializeGame();
+        // Show the status upload screen instead of starting the game directly
+        statusUploadOverlay.classList.remove('hidden');
+    });
+
+    uploadScreenshotBtn.addEventListener('click', () => {
+        playSound('button');
+        // This button now triggers the hidden file input
+        screenshotUploadInput.click();
+    });
+
+    screenshotUploadInput.addEventListener('change', (event) => {
+        const file = event.target.files[0];
+        if (file) {
+            verifyScreenshot(file);
+        }
     });
 });
