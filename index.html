@@ -8,7 +8,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;500;800&display=swap" rel="stylesheet">
-    <script src='https://cdn.jsdelivr.net/npm/tesseract.js@2/dist/tesseract.min.js'></script>
+    <!-- TESSERACT.JS FOR IMAGE TEXT RECOGNITION -->
+    <script src='https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js'></script>
 </head>
 <body>
     <!-- The entire app structure now exists from the start -->
@@ -16,16 +17,18 @@
         <div class="rules-content"><h2 class="rules-title">📜 RULES OF THE GAME</h2><div class="rules-list"><div class="rule-item"><span>✅</span><p><strong>One Scratch per Day:</strong> You get one chance every 24 hours.</p></div><div class="rule-item"><span>🏠</span><p><strong>Only Inside the Café:</strong> Valid only when scanned inside the café.</p></div><div class="rule-item"><span>🎁</span><p><strong>Win a ₹200 Free Food Offer:</strong> Show the winning code to the cashier.</p></div><div class="rule-item"><span>😅</span><p><strong>Didn’t Win?:</strong> No worries! Try again tomorrow.</p></div><div class="rule-item"><span>🔒</span><p><strong>No Misuse:</strong> The QR code is for real visitors only.</p></div></div><button id="accept-rules-btn" class="accept-btn">ACCEPT & PLAY</button></div>
     </div>
 
+    <!-- NEW STATUS UPLOAD SCREEN -->
     <div id="status-upload-overlay" class="status-upload-overlay hidden">
         <div class="status-upload-content">
-            <h2 class="status-upload-title">SHARE ON WHATSAPP TO PLAY</h2>
-            <p class="status-upload-instructions">1. Download the image below and share it on your WhatsApp status.</p>
-            <img src="https://i.imgur.com/example.png" alt="Cafe Rite Status" class="status-image">
-            <a href="https://i.imgur.com/example.png" download="caferite-status.png" id="download-status-btn" class="status-btn">DOWNLOAD</a>
-            <p class="status-upload-instructions">2. Take a screenshot of your status and upload it here.</p>
-            <input type="file" id="screenshot-upload" accept="image/*" class="hidden">
+            <h2 class="status-upload-title">SHARE TO PLAY</h2>
+            <p class="status-upload-instructions"><b>Step 1:</b> Download this image and post it on your WhatsApp status.</p>
+            <!-- FIXED IMAGE PATHS BELOW -->
+            <img src="status.png" alt="Cafe Rite Status Image" class="status-image">
+            <a href="status.png" download="caferite-status.png" id="download-status-btn" class="status-btn">DOWNLOAD IMAGE</a>
+            <p class="status-upload-instructions"><b>Step 2:</b> Take a screenshot of your status and upload it here to unlock your game.</p>
+            <input type="file" id="screenshot-upload-input" class="hidden" accept="image/*">
             <button id="upload-screenshot-btn" class="status-btn">UPLOAD SCREENSHOT</button>
-            <p id="upload-error" class="upload-error hidden"></p>
+            <p id="upload-status-text" class="upload-status-text"></p>
         </div>
     </div>
 
@@ -37,7 +40,6 @@
             <p class="win-condition"><span>🍔</span> = ( WINNER ) ₹200 Free Food Order</p>
         </header>
         <main id="scene-container" class="scene-container">
-            <!-- The game grid or timer will be shown here -->
             <div id="game-grid" class="game-grid"></div>
             <div id="cooldown-message" class="cooldown-message hidden"><p class="cooldown-icon">🕒</p><h2>YOUR NEXT CHANCE IS IN</h2><p id="timer-text" class="timer-text"></p></div>
         </main>
@@ -53,4 +55,4 @@
 
     <script src="script.js"></script>
 </body>
-            </html>
+                </html>
