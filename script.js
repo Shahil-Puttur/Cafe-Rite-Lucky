@@ -22,8 +22,25 @@ document.addEventListener('DOMContentLoaded', () => {
     const buttonSound = document.getElementById('button-sound');
     
     let deviceId = null;
+    let loadingInterval = null; // To hold our loading message timer
 
-    function playSound(type) { try { if (type === 'game') { if (gameMusic) { gameMusic.volume = 0.3; gameMusic.play().catch(e => {}); } } else { if (buttonSound) { buttonSound.currentTime = 0; buttonSound.volume = 0.5; buttonSound.play().catch(e => {}); } } } catch (e) {} }
+    // --- HELPER FUNCTIONS ---
+    function playSound(type) { 
+        try { 
+            if (type === 'game') { 
+                if (gameMusic) { 
+                    gameMusic.volume = 0.3; 
+                    gameMusic.play().catch(e => {}); 
+                } 
+            } else { 
+                if (buttonSound) { 
+                    buttonSound.currentTime = 0; 
+                    buttonSound.volume = 0.5; 
+                    buttonSound.play().catch(e => {}); 
+                } 
+            } 
+        } catch (e) {} 
+    }
     
     function getDeviceId() {
         if (deviceId) return deviceId;
@@ -35,7 +52,17 @@ document.addEventListener('DOMContentLoaded', () => {
         deviceId = id;
         return deviceId;
     }
+
+    // --- OVERLAY MANAGEMENT ---
+    function showOverlay(overlay) {
+        overlay.classList.remove('hidden');
+    }
+
+    function hideOverlay(overlay) {
+        overlay.classList.add('hidden');
+    }
     
+    // --- CORE GAME LOGIC ---
     async function initializeGame() {
         mainApp.classList.remove('hidden');
         playSound('game');
@@ -105,7 +132,11 @@ document.addEventListener('DOMContentLoaded', () => {
         setTimeout(() => { showResult(result); }, 800);
     }
     
-    function populateAllBoxes(items) { document.querySelectorAll('.game-box .box-back').forEach((back, i) => { if(back) back.innerHTML = items[i]; }); }
+    function populateAllBoxes(items) { 
+        document.querySelectorAll('.game-box .box-back').forEach((back, i) => { 
+            if (back) back.innerHTML = items[i]; 
+        }); 
+    }
 
     function showResult(result) {
         setDailyLock();
@@ -123,11 +154,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 }, 100);
             }, 5000);
         }
-        resultOverlay.classList.remove('hidden');
-        setTimeout(() => resultOverlay.classList.add('visible'), 10);
+        showOverlay(resultOverlay);
+        resultOverlay.classList.add('visible');
     }
     
-    function setDailyLock() { localStorage.setItem(`cafeRiteLastPlayed_${getDeviceId()}`, Date.now()); }
+    function setDailyLock() { 
+        localStorage.setItem(`cafeRiteLastPlayed_${getDeviceId()}`, Date.now()); 
+    }
 
     function showCooldownTimer(msLeft) {
         gameGrid.classList.add('hidden');
@@ -151,7 +184,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 1000);
     }
     
-    function pad(num) { return num < 10 ? '0' + num : num; }
+    function pad(num) { 
+        return num < 10 ? '0' + num : num; 
+    }
 
     async function updateViewersCount() {
         if (!viewersCountEl) return;
@@ -161,20 +196,36 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await response.json();
             viewersCountEl.querySelector('span').textContent = data.count;
             viewersCountEl.classList.remove('hidden');
-        } catch (error) { console.log("Could not fetch viewer count."); }
+        } catch (error) { 
+            console.log("Could not fetch viewer count."); 
+        }
     }
     
-    // --- NEW SCREENSHOT VERIFICATION LOGIC ---
+    // --- SCREENSHOT VERIFICATION LOGIC ---
     async function verifyScreenshot(file) {
-        uploadStatusText.textContent = 'Analyzing screenshot...';
-        uploadStatusText.classList.remove('error');
         uploadScreenshotBtn.disabled = true;
+        uploadStatusText.classList.remove('error');
+
+        // Multi-step loading messages
+        const loadingMessages = [
+            'Checking Your Image... 💻',
+            'AI Analysing... 🤖',
+            'Please wait... 🚀'
+        ];
+        let messageIndex = 0;
+        uploadStatusText.textContent = loadingMessages[messageIndex];
+        loadingInterval = setInterval(() => {
+            messageIndex = (messageIndex + 1) % loadingMessages.length;
+            uploadStatusText.textContent = loadingMessages[messageIndex];
+        }, 1500);
 
         try {
             const worker = await Tesseract.createWorker('eng');
             const { data: { text } } = await worker.recognize(file);
             await worker.terminate();
-            
+
+            clearInterval(loadingInterval); // Stop the loading messages
+
             const lowerCaseText = text.toLowerCase();
             const hasMyStatus = lowerCaseText.includes('my status');
             const hasLocation = lowerCaseText.includes('kattigenahalli');
@@ -182,28 +233,30 @@ document.addEventListener('DOMContentLoaded', () => {
             if (hasMyStatus && hasLocation) {
                 uploadStatusText.textContent = 'Verification successful! Starting game...';
                 setTimeout(() => {
-                    statusUploadOverlay.classList.add('hidden');
+                    hideOverlay(statusUploadOverlay);
                     initializeGame();
                 }, 1500);
             } else {
-                let errorMsg = "Verification failed. ";
-                if (!hasMyStatus) errorMsg += "'My status' text not found. ";
-                if (!hasLocation) errorMsg += "'KATTIGENAHALLI' text not found.";
-                throw new Error(errorMsg);
+                // Throw a generic error for any failure
+                throw new Error("Verification failed");
             }
         } catch (error) {
-            uploadStatusText.textContent = error.message || "Could not read image. Please upload original photo.";
+            clearInterval(loadingInterval);
+            // Friendly, generic error message as requested
+            uploadStatusText.textContent = "Upload Original Screenshot 🙂";
             uploadStatusText.classList.add('error');
             uploadScreenshotBtn.disabled = false;
         }
     }
 
-    // --- MASTER FLOW (UPDATED) ---
+    // --- MASTER FLOW ---
+    // Start with the rules overlay visible.
+    showOverlay(rulesOverlay);
+
     acceptBtn.addEventListener('click', () => {
         playSound('button');
-        rulesOverlay.classList.add('hidden');
-        // Show the status upload screen instead of starting the game directly
-        statusUploadOverlay.classList.remove('hidden');
+        hideOverlay(rulesOverlay);
+        showOverlay(statusUploadOverlay);
     });
 
     uploadScreenshotBtn.addEventListener('click', () => {
@@ -215,6 +268,8 @@ document.addEventListener('DOMContentLoaded', () => {
     screenshotUploadInput.addEventListener('change', (event) => {
         const file = event.target.files[0];
         if (file) {
+            // Reset the input so the user can upload the same file again if it fails
+            screenshotUploadInput.value = '';
             verifyScreenshot(file);
         }
     });
